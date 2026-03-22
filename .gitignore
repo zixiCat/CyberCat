@@ -55,3 +55,6 @@ output/
 # build tools cache
 .tools/
 *.wav
+
+# Z
+z.*
