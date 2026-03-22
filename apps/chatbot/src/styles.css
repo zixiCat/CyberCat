@@ -1,0 +1,119 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  /* 1. Set the width of the scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  /* 2. Track (the background) */
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* 3. Thumb (the draggable part) */
+  ::-webkit-scrollbar-thumb {
+    background-color: #94a3b84d; /* Subtle for light */
+    border-radius: 20px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: #94a3b866; /* Subtle for dark */
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #94a3b880;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: #94a3b899;
+  }
+
+  /* Firefox Support */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b84d transparent;
+  }
+
+  .dark * {
+    scrollbar-color: #94a3b866 transparent;
+  }
+}
+
+@layer components {
+  .cybercat-shell {
+    @apply rounded-xl border border-zinc-200/80 bg-zinc-50 shadow-sm dark:border-white/10 dark:bg-zinc-900;
+  }
+
+  .cybercat-panel {
+    @apply rounded-xl border border-zinc-200/80 bg-white shadow-sm dark:border-white/10 dark:bg-zinc-950;
+  }
+
+  .cybercat-icon-tile {
+    @apply flex items-center justify-center rounded-lg border border-zinc-200/80 bg-white dark:border-white/10 dark:bg-zinc-900;
+  }
+
+  .cybercat-icon-button {
+    @apply flex size-9 items-center justify-center rounded-lg border border-zinc-200/80 bg-white transition-all duration-150 hover:border-zinc-300 hover:bg-zinc-100 hover:shadow-sm dark:border-white/10 dark:bg-zinc-950 dark:hover:border-white/15 dark:hover:bg-zinc-900;
+  }
+
+  .cybercat-nav-item {
+    @apply flex w-full cursor-pointer items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-left transition-colors;
+  }
+
+  .cybercat-nav-item-active {
+    @apply border-violet-200/70 bg-linear-to-br from-blue-500/8 to-violet-600/12 shadow-sm dark:border-violet-400/20 dark:from-blue-400/10 dark:to-violet-500/14;
+  }
+
+  .cybercat-inline-badge {
+    @apply inline-flex items-center rounded-lg border border-zinc-200/80 bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-300;
+  }
+
+  .cybercat-gradient-button {
+    @apply bg-linear-to-br from-blue-500 to-violet-600 text-white transition-all duration-150 hover:from-blue-600 hover:to-violet-700 hover:text-white hover:shadow-lg hover:shadow-violet-500/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none;
+  }
+
+}
+
+@layer utilities {
+  .cybercat-settings .ant-btn {
+    box-shadow: none;
+  }
+
+  .cybercat-settings .ant-btn,
+  .cybercat-settings .ant-input,
+  .cybercat-settings .ant-input-affix-wrapper,
+  .cybercat-settings .ant-select-selector,
+  .cybercat-settings .ant-alert,
+  .cybercat-settings audio {
+    border-radius: 10px !important;
+  }
+
+  .cybercat-settings .ant-input,
+  .cybercat-settings .ant-input-affix-wrapper,
+  .cybercat-settings .ant-select-selector,
+  .cybercat-settings .ant-alert {
+    box-shadow: none !important;
+  }
+
+  .cybercat-settings .ant-select-single:not(.ant-select-customize-input) .ant-select-selector {
+    cursor: pointer !important;
+  }
+
+  .cybercat-settings .ant-select-selection-item,
+  .cybercat-settings .ant-select-selection-placeholder,
+  .cybercat-settings .ant-select-selection-search,
+  .cybercat-settings .ant-select-selection-overflow {
+    align-self: center;
+  }
+
+  .cybercat-settings .ant-select-selection-overflow-item .ant-select-selection-item,
+  .cybercat-settings .ant-tag {
+    border-radius: 8px !important;
+  }
+}

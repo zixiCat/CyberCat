@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>CyberCat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/png" href="CyberCat.png" />
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script>
+      // Polyfill for QWebChannel if it's not loaded correctly
+      window.onload = function() {
+        if (typeof QWebChannel === 'undefined') {
+          console.warn('QWebChannel is not defined. Make sure qrc:///qtwebchannel/qwebchannel.js is loaded.');
+        }
+      };
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

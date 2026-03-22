@@ -1,0 +1,22 @@
+[project]
+name = "service"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pynput>=1.7.7",
+    "numpy>=2.4.2",
+    "openai>=2.21.0",
+    "python-dotenv>=1.2.1",
+    "sounddevice>=0.5.5",
+    "win11toast>=0.36.3",
+    "dashscope>=1.25.13",
+    "pyside6>=6.10.2",
+    "pyperclip>=1.11.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.13",
+]
