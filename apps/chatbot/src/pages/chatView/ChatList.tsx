@@ -71,13 +71,17 @@ const EmptyChatState = ({ selectedSession, sessions }: Pick<ChatListProps, 'sele
         ];
 
   return (
-    <div className="flex min-h-full items-start justify-center px-5 pt-[12%] pb-8 text-center">
+    <div className="flex w-full justify-center px-5 py-8 text-center">
       <div className="max-w-xl space-y-3">
         <div className="flex flex-col items-center justify-center gap-3">
           <img
             src={cyberCatLogoSrc}
             alt="CyberCat"
-            className="size-20 rounded-2xl object-cover shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+            className="
+              size-20 rounded-2xl object-cover shadow-sm ring-1 ring-black/5
+
+              dark:ring-white/10
+            "
             draggable={false}
           />
           <div className="flex items-center justify-center gap-2">
@@ -127,7 +131,11 @@ export const ChatList = ({
   return (
     <div
       ref={chatScrollContainerRef}
-      className="flex flex-1 flex-col gap-3 overflow-auto px-3 pt-3 pb-[240px]"
+      className={
+        hasMessages
+          ? 'flex flex-1 flex-col gap-3 overflow-auto px-3 pt-3 pb-[240px]'
+            : 'flex flex-1 items-center justify-center overflow-auto p-3'
+      }
     >
       {!hasMessages ? (
         <EmptyChatState selectedSession={selectedSession} sessions={sessions} />
@@ -190,7 +198,8 @@ export const ChatList = ({
                   <div key={group.id} className="group flex items-center justify-between gap-3">
                     <div
                       className={`
-                        flex-1 text-[13px]/[1.4] whitespace-pre-wrap transition-colors min-h-[24px] flex items-center
+                        flex min-h-[24px] flex-1 items-center text-[13px]/[1.4] whitespace-pre-wrap
+                        transition-colors
 
                         ${
                           isPlaying
@@ -214,7 +223,7 @@ export const ChatList = ({
                         type="text"
                         size="small"
                         className={`
-                          flex size-6 shrink-0 items-center justify-center border-none p-0 m-0
+                          m-0 flex size-6 shrink-0 items-center justify-center border-none p-0
                           transition-all
 
                           ${
