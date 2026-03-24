@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
 const packageJsonPath = join(repoRoot, 'package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-const appVersion = packageJson.version ?? '0.1.0';
+const appVersion = packageJson.version ?? '0.1.1';
 const bundleOnly = process.argv.includes('--bundle-only');
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const pythonCommand = join(repoRoot, '.venv', 'Scripts', 'python.exe');

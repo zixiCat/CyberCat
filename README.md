@@ -13,8 +13,8 @@ CyberCat is a Windows desktop app that combines AI chat, voice recording, and sp
 
 ## Install
 
-1. Open the latest GitHub release.
-2. Download [CyberCat-setup-0.1.0.exe](https://github.com/zixiCat/CyberCat/releases/download/v0.1.0/CyberCat-setup-0.1.0.exe).
+1. Open the latest [GitHub release](https://github.com/zixiCat/CyberCat/releases).
+2. Download the latest CyberCat-setup installer.
 3. Double-click the installer and follow the setup window.
 4. Launch CyberCat from the desktop shortcut or the Start menu.
 

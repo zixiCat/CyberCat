@@ -46,7 +46,7 @@ ISCC_CACHE = INNO_TOOLS_DIR / "ISCC.exe"
 def get_app_version() -> str:
     """Read version from package.json (single source of truth)."""
     data = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))
-    return data.get("version", "0.1.0")
+    return data.get("version", "0.1.1")
 
 
 # ---------------------------------------------------------------------------
