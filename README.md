@@ -1,7 +1,7 @@
 <div align="center">
 	<img src="./CyberCat.png" alt="CyberCat" width="132" />
 	<p>
-		<img src="./CyberCatText.png" alt="CyberCatText" width="146" />
+		<img src="./CyberCat4Text.png" alt="CyberCatText" width="146" />
 	</p>
 	<p><strong>Your AI desktop companion for chat, voice input, and natural speech.</strong></p>
 	<p>Talk, type, listen, and keep everything in one place.</p>

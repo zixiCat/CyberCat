@@ -1,7 +1,7 @@
 <div align="center">
 	<img src="./CyberCat.png" alt="CyberCat" width="132" />
 	<p>
-	  <img src="./CyberCatText.png" alt="CyberCatText" width="146" />
+	  <img src="./CyberCat4Text.png" alt="CyberCatText" width="146" />
 	</p>
 	<p><strong>你的 AI 桌面伙伴，支持聊天、语音输入和自然语音播报。</strong></p>
 	<p>能说、能听、能打字，全部集中在一个应用里。</p>
