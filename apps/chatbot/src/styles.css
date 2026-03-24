@@ -78,6 +78,85 @@
     @apply bg-linear-to-br from-blue-500 to-violet-600 text-white transition-all duration-150 hover:from-blue-600 hover:to-violet-700 hover:text-white hover:shadow-lg hover:shadow-violet-500/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none;
   }
 
+  .cybercat-markdown {
+    @apply min-w-0 text-[13px] leading-[1.5] break-words;
+  }
+
+  .cybercat-markdown > :first-child {
+    margin-top: 0;
+  }
+
+  .cybercat-markdown > :last-child {
+    margin-bottom: 0;
+  }
+
+  .cybercat-markdown p,
+  .cybercat-markdown ul,
+  .cybercat-markdown ol,
+  .cybercat-markdown pre,
+  .cybercat-markdown blockquote,
+  .cybercat-markdown table,
+  .cybercat-markdown hr {
+    @apply my-2;
+  }
+
+  .cybercat-markdown ul {
+    @apply list-disc pl-5;
+  }
+
+  .cybercat-markdown ol {
+    @apply list-decimal pl-5;
+  }
+
+  .cybercat-markdown li > p {
+    @apply my-1;
+  }
+
+  .cybercat-markdown a {
+    @apply text-blue-600 underline underline-offset-2 dark:text-blue-400;
+  }
+
+  .cybercat-markdown strong {
+    @apply font-semibold;
+  }
+
+  .cybercat-markdown em {
+    @apply italic;
+  }
+
+  .cybercat-markdown code {
+    @apply rounded bg-zinc-100 px-1 py-0.5 font-mono text-[12px] text-zinc-800 dark:bg-zinc-900 dark:text-zinc-100;
+  }
+
+  .cybercat-markdown pre {
+    @apply overflow-x-auto rounded-xl border border-zinc-200/80 bg-zinc-950 p-3 text-zinc-100 dark:border-white/10;
+  }
+
+  .cybercat-markdown pre code {
+    @apply bg-transparent p-0 text-inherit;
+  }
+
+  .cybercat-markdown blockquote {
+    @apply border-l-2 border-zinc-300 pl-3 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400;
+  }
+
+  .cybercat-markdown table {
+    @apply w-full border-collapse overflow-hidden rounded-lg text-left;
+  }
+
+  .cybercat-markdown thead {
+    @apply bg-zinc-100 dark:bg-zinc-900;
+  }
+
+  .cybercat-markdown th,
+  .cybercat-markdown td {
+    @apply border border-zinc-200/80 px-2 py-1 align-top dark:border-white/10;
+  }
+
+  .cybercat-markdown hr {
+    @apply border-zinc-200/80 dark:border-white/10;
+  }
+
 }
 
 @layer utilities {

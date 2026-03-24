@@ -1,5 +1,7 @@
 import { Button } from 'antd';
 import { Music2, Play, Volume2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { RefObject } from 'react';
 
 import { ChunkSegment, Session } from './types';
@@ -54,6 +56,21 @@ const buildDisplaySegmentGroups = (
       });
       return groups;
     }, []);
+
+const MarkdownMessage = ({ text }: { text: string }) => (
+  <div className="cybercat-markdown min-w-0 flex-1">
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        a: ({ node: _node, ...props }) => (
+          <a {...props} target="_blank" rel="noreferrer" />
+        ),
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  </div>
+);
 
 const EmptyChatState = ({ selectedSession, sessions }: Pick<ChatListProps, 'selectedSession' | 'sessions'>) => {
   const cyberCatLogoSrc = 'CyberCat.png';
@@ -126,7 +143,8 @@ export const ChatList = ({
   chatScrollContainerRef,
   registerTaskElement,
 }: ChatListProps) => {
-  const hasMessages = Boolean(selectedSession?.tasks.length);
+  const tasks = selectedSession?.tasks ?? [];
+  const hasMessages = tasks.length > 0;
 
   return (
     <div
@@ -140,7 +158,7 @@ export const ChatList = ({
       {!hasMessages ? (
         <EmptyChatState selectedSession={selectedSession} sessions={sessions} />
       ) : (
-        selectedSession.tasks.map((task) => (
+        tasks.map((task) => (
           <div
             key={task.id}
             ref={(element) => registerTaskElement(task.id, element)}
@@ -198,7 +216,7 @@ export const ChatList = ({
                   <div key={group.id} className="group flex items-center justify-between gap-3">
                     <div
                       className={`
-                        flex min-h-[24px] flex-1 items-center text-[13px]/[1.4] whitespace-pre-wrap
+                        flex min-h-[24px] flex-1 text-[13px]/[1.5]
                         transition-colors
 
                         ${
@@ -216,7 +234,7 @@ export const ChatList = ({
                         }
                       `}
                     >
-                      {group.text}
+                      <MarkdownMessage text={group.text} />
                     </div>
                     {hasAudio && (
                       <Button
