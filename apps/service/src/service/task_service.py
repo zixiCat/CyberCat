@@ -3,11 +3,14 @@ import base64
 import time
 import threading
 from queue import Empty, Queue
+from typing import Any
 from openai import OpenAI
 import dashscope
 from PySide6.QtCore import QObject, Signal, Slot
 from service.config_service import config_service
 from service.qwen_tts_service import decode_audio_chunk, qwen_tts_service
+
+MAX_HISTORY_MESSAGES = 20
 
 
 class TaskService(QObject):
@@ -44,17 +47,21 @@ class TaskService(QObject):
         self._tts_worker = threading.Thread(target=self._tts_worker_loop, daemon=True)
         self._tts_worker.start()
 
-    def start_task(self, text: str, system_prompt: str = None):
+    def start_task(self, text: str, system_prompt: str = None, history_json: str = None):
         """Starts the task in a background thread to avoid blocking the GUI."""
         self._stop_event.clear()
-        threading.Thread(target=self._run_task, args=(text, system_prompt), daemon=True).start()
+        threading.Thread(
+            target=self._run_task,
+            args=(text, system_prompt, history_json),
+            daemon=True,
+        ).start()
 
     def stop_task(self):
         """Stops the current running task."""
         self._stop_event.set()
         self._clear_pending_tts()
 
-    def _run_task(self, text: str, system_prompt: str = None):
+    def _run_task(self, text: str, system_prompt: str = None, history_json: str = None):
         print(f"Task started with text: {text}")
         try:
             with self._counter_lock:
@@ -63,10 +70,7 @@ class TaskService(QObject):
 
             self.task_started.emit(task_id, text)
 
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": text})
+            messages = self._build_messages(text, system_prompt, history_json)
 
             print(f"DEBUG: Starting LLM stream for model {self.model_name}")
             llm_request_started_at = time.perf_counter()
@@ -150,6 +154,56 @@ class TaskService(QObject):
             print(f"Task error: {e}")
         finally:
             self.task_finished.emit()
+
+    def _build_messages(
+        self,
+        text: str,
+        system_prompt: str = None,
+        history_json: str = None,
+    ) -> list[dict[str, str]]:
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+
+        messages.extend(self._parse_history_messages(history_json))
+        messages.append({"role": "user", "content": text})
+        return messages
+
+    def _parse_history_messages(self, history_json: str = None) -> list[dict[str, str]]:
+        if not history_json:
+            return []
+
+        try:
+            payload = json.loads(history_json)
+        except json.JSONDecodeError as error:
+            print(f"Failed to parse chat history: {error}")
+            return []
+
+        if not isinstance(payload, list):
+            return []
+
+        messages: list[dict[str, str]] = []
+        for item in payload:
+            normalized = self._normalize_history_message(item)
+            if normalized is not None:
+                messages.append(normalized)
+
+        return messages[-MAX_HISTORY_MESSAGES:]
+
+    def _normalize_history_message(self, item: Any) -> dict[str, str] | None:
+        if not isinstance(item, dict):
+            return None
+
+        role = item.get("role")
+        content = item.get("content")
+        if role not in {"user", "assistant"} or not isinstance(content, str):
+            return None
+
+        normalized_content = content.strip()
+        if not normalized_content:
+            return None
+
+        return {"role": role, "content": normalized_content}
 
     def _enqueue_tts_segment(self, segment_id: int, text: str):
         with self._pending_segments_lock:

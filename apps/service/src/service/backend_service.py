@@ -474,12 +474,14 @@ class BackendService(QObject):
             print(f"Error reading prompt {filename}: {e}")
         return ""
 
+    @Slot(str)
     @Slot(str, str)
-    def start_task(self, text: str, system_prompt: str = None):
+    @Slot(str, str, str)
+    def start_task(self, text: str, system_prompt: str = None, history_json: str = None):
         """Called from frontend or backend to start a task."""
         print(f"Starting task with text: {text}")
         prompt = system_prompt if system_prompt is not None else self.active_system_prompt
-        task_service.start_task(text, prompt)
+        task_service.start_task(text, prompt, history_json)
 
     @Slot()
     def stop_task(self):

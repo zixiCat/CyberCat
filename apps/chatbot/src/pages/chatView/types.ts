@@ -60,6 +60,7 @@ export interface SpeechLabBackendSignalHandlers {
 }
 
 export interface BackendBridge {
+  start_task?: (text: string, systemPrompt?: string, historyJson?: string) => void;
   start_tts_test?: (requestId: string, text: string, voice: string) => void;
   start_asr_test_recording?: () => Promise<string>;
   stop_asr_test_recording?: () => Promise<string>;
