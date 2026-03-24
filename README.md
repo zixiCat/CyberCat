@@ -1,10 +1,8 @@
 <div align="center">
 	<img src="./CyberCat.png" alt="CyberCat" width="132" />
-	<h1>
-		<span style="background: linear-gradient(90deg, #22d3ee 0%, #7c3aed 55%, #ec4899 100%); -webkit-background-clip: text; background-clip: text; color: transparent;">
-			CyberCat
-		</span>
-	</h1>
+	<div>
+		<img src="./CyberCatText.png" alt="CyberCatText" width="146" />
+	</div>
 	<p><strong>Your AI desktop companion for chat, voice input, and natural speech.</strong></p>
 	<p>Talk, type, listen, and keep everything in one place.</p>
 </div>

@@ -1,10 +1,8 @@
 <div align="center">
 	<img src="./CyberCat.png" alt="CyberCat" width="132" />
-	<h1>
-		<span style="background: linear-gradient(90deg, #22d3ee 0%, #7c3aed 55%, #ec4899 100%); -webkit-background-clip: text; background-clip: text; color: transparent;">
-			CyberCat
-		</span>
-	</h1>
+	<div>
+	  <img src="./CyberCatText.png" alt="CyberCatText" width="146" />
+	</div>
 	<p><strong>你的 AI 桌面伙伴，支持聊天、语音输入和自然语音播报。</strong></p>
 	<p>能说、能听、能打字，全部集中在一个应用里。</p>
 </div>
