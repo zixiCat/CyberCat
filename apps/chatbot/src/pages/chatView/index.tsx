@@ -90,6 +90,26 @@ const stripTransientSessionData = (session: Session) => ({
   })),
 });
 
+const buildSessionHistory = (session: Session | undefined) =>
+  (session?.tasks ?? []).flatMap((task) => {
+    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+    const prompt = task.prompt.trim();
+    const response = task.segments
+      .map((segment) => segment.text ?? '')
+      .join('')
+      .trim();
+
+    if (prompt) {
+      messages.push({ role: 'user', content: prompt });
+    }
+
+    if (response) {
+      messages.push({ role: 'assistant', content: response });
+    }
+
+    return messages;
+  });
+
 export const ChatView = () => {
   const { theme, setTheme } = useTheme();
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -478,6 +498,31 @@ export const ChatView = () => {
     }
   };
 
+  const createSession = () => {
+    const newId = generateSessionId();
+    const newSession: Session = {
+      id: newId,
+      timestamp: formatTimestamp(),
+      tasks: [],
+      systemPromptFile: selectedPromptFile,
+    };
+
+    updateSessions((prev) => [...prev, newSession]);
+    selectedSessionIdRef.current = newId;
+    setSelectedSessionId(newId);
+
+    return newSession;
+  };
+
+  const ensureActiveSessionId = () => {
+    const activeSessionId = selectedSessionIdRef.current;
+    if (activeSessionId && sessionsRef.current.some((session) => session.id === activeSessionId)) {
+      return activeSessionId;
+    }
+
+    return createSession().id;
+  };
+
   const stopStreaming = () => {
     window.backend?.stop_task();
     if (currentSourceRef.current) {
@@ -495,7 +540,11 @@ export const ChatView = () => {
     if (!inputText.trim() || isTaskRunning) return;
 
     if (window.backend) {
-      window.backend.start_task(inputText, selectedPromptContent);
+      const targetSessionId = ensureActiveSessionId();
+      const targetSession = sessionsRef.current.find((session) => session.id === targetSessionId);
+      const historyJson = JSON.stringify(buildSessionHistory(targetSession));
+
+      window.backend.start_task(inputText, selectedPromptContent, historyJson);
       setInputText('');
       scrollChatToBottom('smooth');
     } else {
@@ -504,15 +553,7 @@ export const ChatView = () => {
   };
 
   const createNewSession = () => {
-    const newId = generateSessionId();
-    const newSession: Session = {
-      id: newId,
-      timestamp: formatTimestamp(),
-      tasks: [],
-      systemPromptFile: selectedPromptFile,
-    };
-    updateSessions((prev) => [...prev, newSession]);
-    setSelectedSessionId(newId);
+    createSession();
   };
 
   const startWindowDrag = () => {
@@ -654,15 +695,7 @@ export const ChatView = () => {
           const nowStr = formatTimestamp();
 
           setTimeout(() => {
-            let targetSessionId = selectedSessionIdRef.current;
-            if (!targetSessionId && sessionsRef.current.length > 0) {
-              targetSessionId = sessionsRef.current[sessionsRef.current.length - 1].id;
-              setSelectedSessionId(targetSessionId);
-            }
-            if (!targetSessionId) {
-              console.warn('No active session available. Please create a new session manually.');
-              return;
-            }
+            const targetSessionId = ensureActiveSessionId();
             updateSessions((prev) => {
               return prev.map((session) => {
                 if (session.id === targetSessionId) {

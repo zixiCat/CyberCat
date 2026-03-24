@@ -1,5 +1,7 @@
 import { Button } from 'antd';
 import { Music2, Play, Volume2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { RefObject } from 'react';
 
 import { ChunkSegment, Session } from './types';
@@ -55,6 +57,21 @@ const buildDisplaySegmentGroups = (
       return groups;
     }, []);
 
+const MarkdownMessage = ({ text }: { text: string }) => (
+  <div className="cybercat-markdown min-w-0 flex-1">
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        a: ({ node: _node, ...props }) => (
+          <a {...props} target="_blank" rel="noreferrer" />
+        ),
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  </div>
+);
+
 const EmptyChatState = ({ selectedSession, sessions }: Pick<ChatListProps, 'selectedSession' | 'sessions'>) => {
   const cyberCatLogoSrc = 'CyberCat.png';
   const message = selectedSession
@@ -71,13 +88,17 @@ const EmptyChatState = ({ selectedSession, sessions }: Pick<ChatListProps, 'sele
         ];
 
   return (
-    <div className="flex min-h-full items-start justify-center px-5 pt-[12%] pb-8 text-center">
+    <div className="flex w-full justify-center px-5 py-8 text-center">
       <div className="max-w-xl space-y-3">
         <div className="flex flex-col items-center justify-center gap-3">
           <img
             src={cyberCatLogoSrc}
             alt="CyberCat"
-            className="size-20 rounded-2xl object-cover shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+            className="
+              size-20 rounded-2xl object-cover shadow-sm ring-1 ring-black/5
+
+              dark:ring-white/10
+            "
             draggable={false}
           />
           <div className="flex items-center justify-center gap-2">
@@ -122,17 +143,22 @@ export const ChatList = ({
   chatScrollContainerRef,
   registerTaskElement,
 }: ChatListProps) => {
-  const hasMessages = Boolean(selectedSession?.tasks.length);
+  const tasks = selectedSession?.tasks ?? [];
+  const hasMessages = tasks.length > 0;
 
   return (
     <div
       ref={chatScrollContainerRef}
-      className="flex flex-1 flex-col gap-3 overflow-auto px-3 pt-3 pb-[240px]"
+      className={
+        hasMessages
+          ? 'flex flex-1 flex-col gap-3 overflow-auto px-3 pt-3 pb-[240px]'
+            : 'flex flex-1 items-center justify-center overflow-auto p-3'
+      }
     >
       {!hasMessages ? (
         <EmptyChatState selectedSession={selectedSession} sessions={sessions} />
       ) : (
-        selectedSession.tasks.map((task) => (
+        tasks.map((task) => (
           <div
             key={task.id}
             ref={(element) => registerTaskElement(task.id, element)}
@@ -190,7 +216,8 @@ export const ChatList = ({
                   <div key={group.id} className="group flex items-center justify-between gap-3">
                     <div
                       className={`
-                        flex-1 text-[13px]/[1.4] whitespace-pre-wrap transition-colors min-h-[24px] flex items-center
+                        flex min-h-[24px] flex-1 text-[13px]/[1.5]
+                        transition-colors
 
                         ${
                           isPlaying
@@ -207,14 +234,14 @@ export const ChatList = ({
                         }
                       `}
                     >
-                      {group.text}
+                      <MarkdownMessage text={group.text} />
                     </div>
                     {hasAudio && (
                       <Button
                         type="text"
                         size="small"
                         className={`
-                          flex size-6 shrink-0 items-center justify-center border-none p-0 m-0
+                          m-0 flex size-6 shrink-0 items-center justify-center border-none p-0
                           transition-all
 
                           ${

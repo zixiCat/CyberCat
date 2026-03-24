@@ -1,8 +1,7 @@
-## 
-cd /d/Code/zixiCat/CyberCat/apps/service/src/scripts/bilibili; ./BBDown --multi-file-pattern "<videoTitle>/<ownerName> - <pageTitle>" https://space.bilibili.com/7825867/favlist?fid=3872543267
+```sh
+cd /d/Code/zixiCat/CyberCat/apps/service/src/scripts/bilibili; 
+```
 
-### Show info
-
-```bash
-./BBDown https://space.bilibili.com/7825867/favlist?fid=3872543267
+```sh
+./BBDown https://space.bilibili.com/7825867/favlist?fid=3968524867&ftype=create
 ```

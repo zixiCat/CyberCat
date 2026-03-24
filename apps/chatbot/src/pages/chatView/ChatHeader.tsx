@@ -186,8 +186,8 @@ export const ChatHeader = ({
         )}
       </div>
 
-      <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2">
+      <div className="relative mt-2 flex flex-col gap-2 min-[660px]:flex-row min-[660px]:items-center">
+        <div className="flex shrink-0 items-center gap-1">
           <Tooltip title={isSidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}>
             <Button
               type="text"
@@ -206,10 +206,10 @@ export const ChatHeader = ({
           </Tooltip>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+        <div className="flex min-w-0 flex-wrap items-center gap-1 min-[660px]:pr-11 min-[660px]:gap-1.5">
         <Select
           size="small"
-          className="w-28 text-[10px] sm:w-32"
+          className="w-24 text-[10px] sm:w-28"
           value={selectedPromptFile}
           onChange={(file) => {
             setSelectedPromptFile(file);
@@ -231,7 +231,7 @@ export const ChatHeader = ({
 
         <Select
           size="small"
-          className="w-28 text-[10px] sm:w-36"
+          className="w-24 text-[10px] sm:w-32"
           value={selectedVoice}
           onChange={(voice) => {
             setSelectedVoice(voice);
@@ -411,13 +411,15 @@ export const ChatHeader = ({
           />
         </Tooltip>
 
-        <Tooltip title="Profiles & Settings" placement="bottom">
-          <SettingsProfileButton
-            onProfileApplied={reloadProfileSettings}
-            buttonClassName="text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:text-zinc-400 dark:hover:bg-white/5"
-            placement="bottomRight"
-          />
-        </Tooltip>
+            <div className="min-[660px]:absolute min-[660px]:top-1/2 min-[660px]:right-0 min-[660px]:-translate-y-1/2">
+              <Tooltip title="Profiles & Settings" placement="bottom">
+                <SettingsProfileButton
+                  onProfileApplied={reloadProfileSettings}
+                  buttonClassName="text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:text-zinc-400 dark:hover:bg-white/5"
+                  placement="bottomRight"
+                />
+              </Tooltip>
+            </div>
         </div>
       </div>
     </div>
