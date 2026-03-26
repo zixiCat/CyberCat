@@ -16,6 +16,7 @@ import { useChatSessions } from './useChatSessions';
 import { useDesktopMessageInputFocus } from './useDesktopMessageInputFocus';
 
 const ZERO_OFFSET = 0;
+const DEFAULT_CHAT_SCROLL_PADDING_BOTTOM = 240;
 
 export const ChatView = () => {
   const { theme, setTheme } = useTheme();
@@ -33,6 +34,9 @@ export const ChatView = () => {
   );
   const [thinkingEnabled, setThinkingEnabledState] = useState(false);
   const [thinkingSupported, setThinkingSupported] = useState(false);
+  const [chatScrollPaddingBottom, setChatScrollPaddingBottom] = useState(
+    DEFAULT_CHAT_SCROLL_PADDING_BOTTOM,
+  );
   const autoPlayRef = useRef(autoPlay);
   const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const taskElementRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -126,19 +130,6 @@ export const ChatView = () => {
       });
     }
   }, [selectedPromptFile, selectedSessionId, sessions]);
-  const scrollChatToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    const container = chatScrollContainerRef.current;
-    if (!container) {
-      return;
-    }
-
-    window.requestAnimationFrame(() => {
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior,
-      });
-    });
-  }, []);
   const scrollTaskToTop = useCallback((taskId: number, behavior: ScrollBehavior = 'smooth') => {
     const container = chatScrollContainerRef.current;
     const taskElement = taskElementRefs.current.get(taskId);
@@ -148,12 +139,23 @@ export const ChatView = () => {
     }
 
     pendingTaskScrollIdRef.current = null;
+    const containerPaddingTop =
+      Number.parseFloat(window.getComputedStyle(container).paddingTop) || ZERO_OFFSET;
+    const nextPaddingBottom = Math.max(
+      DEFAULT_CHAT_SCROLL_PADDING_BOTTOM,
+      container.clientHeight - containerPaddingTop - taskElement.offsetHeight,
+    );
+
+    setChatScrollPaddingBottom((currentPaddingBottom) =>
+      currentPaddingBottom === nextPaddingBottom ? currentPaddingBottom : nextPaddingBottom,
+    );
+
     window.requestAnimationFrame(() => {
-      const containerPaddingTop =
-        Number.parseFloat(window.getComputedStyle(container).paddingTop) || ZERO_OFFSET;
-      container.scrollTo({
-        top: Math.max(ZERO_OFFSET, taskElement.offsetTop - containerPaddingTop),
-        behavior,
+      window.requestAnimationFrame(() => {
+        container.scrollTo({
+          top: Math.max(ZERO_OFFSET, taskElement.offsetTop - containerPaddingTop),
+          behavior,
+        });
       });
     });
   }, []);
@@ -180,9 +182,8 @@ export const ChatView = () => {
     const historyJson = JSON.stringify(buildSessionHistory(targetSession));
 
     backend.start_task(prompt, selectedPromptContent, historyJson);
-    scrollChatToBottom('smooth');
     return true;
-  }, [ensureActiveSessionId, isTaskRunning, scrollChatToBottom, selectedPromptContent, sessionsRef]);
+  }, [ensureActiveSessionId, isTaskRunning, selectedPromptContent, sessionsRef]);
   const stopStreaming = useCallback(() => {
     window.backend?.stop_task();
     stopAudioPlayback();
@@ -211,7 +212,6 @@ export const ChatView = () => {
     hydrateSessions,
     processAudioChunk,
     reloadProfileSettings,
-    scrollChatToBottom,
     scrollTaskToTop,
     setAvailablePrompts,
     setIsTaskRunning,
@@ -228,6 +228,7 @@ export const ChatView = () => {
       autoPlay={autoPlay}
       availablePrompts={availablePrompts}
       chatScrollContainerRef={chatScrollContainerRef}
+      chatScrollPaddingBottom={chatScrollPaddingBottom}
       clearCurrentChat={clearCurrentChat}
       closeWindow={closeWindow}
       createNewSession={createNewSession}

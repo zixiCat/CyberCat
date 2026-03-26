@@ -11,14 +11,17 @@ interface ChatListProps {
   currentReceivingSegmentId: number | null;
   playAudio: (segment: ChunkSegment) => void;
   chatScrollContainerRef: RefObject<HTMLDivElement | null>;
+  chatScrollPaddingBottom: number;
   registerTaskElement: (taskId: number, element: HTMLDivElement | null) => void;
 }
+
+const ZERO_ITEMS = 0;
 
 const EmptyChatState = memo(({ selectedSession, sessions }: Pick<ChatListProps, 'selectedSession' | 'sessions'>) => {
   const cyberCatLogoSrc = 'CyberCat.png';
   const message = selectedSession
     ? 'Ask anything and CyberCat will stream the response in real time.'
-    : sessions.length > 0
+    : sessions.length > ZERO_ITEMS
       ? 'Select a chat from history or create a new session to continue.'
       : 'Welcome to CyberCat. Start your first session to begin.';
 
@@ -83,18 +86,20 @@ export const ChatList = memo(({
   currentReceivingSegmentId,
   playAudio,
   chatScrollContainerRef,
+  chatScrollPaddingBottom,
   registerTaskElement,
 }: ChatListProps) => {
   const tasks = selectedSession?.tasks ?? [];
-  const hasMessages = tasks.length > 0;
+  const hasMessages = tasks.length > ZERO_ITEMS;
 
   return (
     <div
       ref={chatScrollContainerRef}
+      style={hasMessages ? { paddingBottom: `${chatScrollPaddingBottom}px` } : undefined}
       className={
         hasMessages
-          ? 'flex flex-1 flex-col gap-3 overflow-auto px-3 pt-3 pb-[240px]'
-            : 'flex flex-1 items-center justify-center overflow-auto p-3'
+          ? 'flex flex-1 flex-col gap-3 overflow-auto px-3 pt-3'
+          : 'flex flex-1 items-center justify-center overflow-auto p-3'
       }
     >
       {!hasMessages ? (

@@ -4,6 +4,10 @@ import { useMount, useUnmount } from 'react-use';
 import { ensureBackendSignalBindings, formatTimestamp, RETRY_DELAY_MS } from './chatShared';
 import { ChatBackendSignalHandlers, ChunkSegment, Session, Task } from './types';
 
+const ZERO_DELAY_MS = 0;
+const SEGMENT_TASK_DIVISOR = 10000;
+const ZERO_PROMPTS = 0;
+
 interface UseChatBootstrapOptions {
   ensureActiveSessionId: () => string;
   finalizePendingSegments: () => void;
@@ -11,7 +15,6 @@ interface UseChatBootstrapOptions {
   hydrateSessions: (sessions: Session[]) => void;
   processAudioChunk: (segmentId: number, audioBase64: string) => void;
   reloadProfileSettings: () => Promise<void>;
-  scrollChatToBottom: (behavior?: ScrollBehavior) => void;
   scrollTaskToTop: (taskId: number, behavior?: ScrollBehavior) => void;
   setAvailablePrompts: (prompts: string[]) => void;
   setIsTaskRunning: (value: boolean) => void;
@@ -28,7 +31,6 @@ export const useChatBootstrap = ({
   hydrateSessions,
   processAudioChunk,
   reloadProfileSettings,
-  scrollChatToBottom,
   scrollTaskToTop,
   setAvailablePrompts,
   setIsTaskRunning,
@@ -66,10 +68,10 @@ export const useChatBootstrap = ({
               }),
             );
             scrollTaskToTop(taskId);
-          }, 0);
+          }, ZERO_DELAY_MS);
         },
         onSegmentTextChunk: (segmentId: number, chunk: string) => {
-          const taskId = Math.floor(segmentId / 10000);
+          const taskId = Math.floor(segmentId / SEGMENT_TASK_DIVISOR);
           updateSessions((prev) =>
             prev.map((session) => {
               const taskExists = session.tasks.some((task) => task.id === taskId);
@@ -104,7 +106,6 @@ export const useChatBootstrap = ({
               };
             }),
           );
-          scrollChatToBottom('auto');
         },
         onSegmentAudioChunk: (segmentId: number, audioBase64: string) => {
           processAudioChunk(segmentId, audioBase64);
@@ -130,7 +131,7 @@ export const useChatBootstrap = ({
         try {
           const prompts = JSON.parse(promptsJson) as string[];
           setAvailablePrompts(prompts);
-          if (prompts.length === 0) {
+          if (prompts.length === ZERO_PROMPTS) {
             return;
           }
 

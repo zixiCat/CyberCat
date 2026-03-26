@@ -11,6 +11,7 @@ interface ChatViewLayoutProps {
   autoPlay: boolean;
   availablePrompts: string[];
   chatScrollContainerRef: RefObject<HTMLDivElement | null>;
+  chatScrollPaddingBottom: number;
   clearCurrentChat: () => void;
   closeWindow: () => void;
   createNewSession: () => void;
@@ -54,6 +55,7 @@ export const ChatViewLayout = ({
   autoPlay,
   availablePrompts,
   chatScrollContainerRef,
+  chatScrollPaddingBottom,
   clearCurrentChat,
   closeWindow,
   createNewSession,
@@ -149,6 +151,7 @@ export const ChatViewLayout = ({
           currentReceivingSegmentId={currentReceivingSegmentId}
           playAudio={playAudio}
           chatScrollContainerRef={chatScrollContainerRef}
+          chatScrollPaddingBottom={chatScrollPaddingBottom}
           registerTaskElement={registerTaskElement}
         />
         <ChatInput
