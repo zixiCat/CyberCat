@@ -1,11 +1,11 @@
+import { useState } from 'react';
+
 import { Input } from 'antd';
 import { Brain, Send } from 'lucide-react';
 
 interface ChatInputProps {
-  inputText: string;
-  setInputText: (text: string) => void;
   isTaskRunning: boolean;
-  handleSendMessage: () => void;
+  handleSendMessage: (text: string) => boolean;
   inputId: string;
   thinkingEnabled: boolean;
   thinkingSupported: boolean;
@@ -13,8 +13,6 @@ interface ChatInputProps {
 }
 
 export const ChatInput = ({
-  inputText,
-  setInputText,
   isTaskRunning,
   handleSendMessage,
   inputId,
@@ -22,10 +20,19 @@ export const ChatInput = ({
   thinkingSupported,
   setThinkingEnabled,
 }: ChatInputProps) => {
+  const [inputText, setInputText] = useState('');
+
+  const sendMessage = () => {
+    const didSend = handleSendMessage(inputText);
+    if (didSend) {
+      setInputText('');
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      sendMessage();
     }
   };
 
@@ -120,7 +127,7 @@ export const ChatInput = ({
             </span>
 
             <button
-              onClick={handleSendMessage}
+              onClick={sendMessage}
               disabled={!inputText.trim() || isTaskRunning}
               className="
                 mr-2 inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-linear-to-br
