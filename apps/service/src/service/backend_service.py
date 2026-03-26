@@ -187,11 +187,8 @@ class BackendService(QObject):
         qwen_tts_service.set_base_url(config_service.get("qwen_tts_base_url"))
         qwen_tts_service.set_default_voice(config_service.get("voice", "auto"))
         qwen_tts_service.set_random_voice_pool(config_service.get("random_voice_pool", ""))
-        # Update LLM (task_service)
-        task_service.client.api_key = config_service.get("openai_api_key")
-        task_service.client.base_url = config_service.get("openai_base_url")
-        task_service.model_name = config_service.get("openai_model")
-        task_service.enable_thinking = config_service.get_bool("openai_enable_thinking")
+        # Update LLM agent configuration
+        task_service.reload_config()
 
     @Slot(str, str)
     def save_session(self, session_id: str, session_json: str):

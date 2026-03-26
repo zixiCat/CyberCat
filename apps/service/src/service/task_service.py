@@ -1,12 +1,15 @@
-import json
+import asyncio
 import base64
+import json
 import time
 import threading
 from queue import Empty, Queue
 from typing import Any
-from openai import OpenAI
+
 import dashscope
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, Signal
+
+from service.agent_service import agent_service
 from service.config_service import config_service
 from service.qwen_tts_service import decode_audio_chunk, qwen_tts_service
 
@@ -23,35 +26,32 @@ class TaskService(QObject):
 
     def __init__(self):
         super().__init__()
-
-        # Read LLM configuration from config_service (persisted settings)
-        api_key = config_service.get("openai_api_key")
-        base_url = config_service.get("openai_base_url")
-        self.model_name = config_service.get("openai_model")
-        self.enable_thinking = config_service.get_bool("openai_enable_thinking")
-
-        self.client = OpenAI(
-            base_url=base_url,
-            api_key=api_key,
-        )
+        self.model_name = ""
         qwen_tts_service.apply_base_url()
-
         self._task_counter = 0
         self._counter_lock = threading.Lock()
+        self._stream_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._tts_queue = Queue()
         self._pending_segments = 0
         self._pending_segments_lock = threading.Lock()
         self._pending_segments_done = threading.Event()
         self._pending_segments_done.set()
+        self._current_stream = None
         self._tts_worker = threading.Thread(target=self._tts_worker_loop, daemon=True)
         self._tts_worker.start()
+        self.reload_config()
+
+    def reload_config(self):
+        """Refresh model settings from the persisted config."""
+        agent_service.reload_config()
+        self.model_name = agent_service.model_name
 
     def start_task(self, text: str, system_prompt: str = None, history_json: str = None):
         """Starts the task in a background thread to avoid blocking the GUI."""
         self._stop_event.clear()
         threading.Thread(
-            target=self._run_task,
+            target=self._run_task_thread,
             args=(text, system_prompt, history_json),
             daemon=True,
         ).start()
@@ -59,9 +59,16 @@ class TaskService(QObject):
     def stop_task(self):
         """Stops the current running task."""
         self._stop_event.set()
+        with self._stream_lock:
+            current_stream = self._current_stream
+        if current_stream is not None:
+            current_stream.cancel()
         self._clear_pending_tts()
 
-    def _run_task(self, text: str, system_prompt: str = None, history_json: str = None):
+    def _run_task_thread(self, text: str, system_prompt: str = None, history_json: str = None):
+        asyncio.run(self._run_task(text, system_prompt, history_json))
+
+    async def _run_task(self, text: str, system_prompt: str = None, history_json: str = None):
         print(f"Task started with text: {text}")
         try:
             with self._counter_lock:
@@ -69,25 +76,13 @@ class TaskService(QObject):
                 task_id = self._task_counter
 
             self.task_started.emit(task_id, text)
+            input_items = self._build_input_items(text, history_json)
 
-            messages = self._build_messages(text, system_prompt, history_json)
-
-            print(f"DEBUG: Starting LLM stream for model {self.model_name}")
+            print(f"DEBUG: Starting agent stream for model {self.model_name}")
             llm_request_started_at = time.perf_counter()
-            request_options = {
-                "model": self.model_name,
-                "messages": messages,
-                "stream": True,
-                "stream_options": {"include_usage": True},
-            }
-            if self._supports_thinking():
-                request_options["extra_body"] = {"enable_thinking": True}
-            else:
-                request_options["extra_body"] = {"enable_thinking": False}
-
-            response = self.client.chat.completions.create(**request_options)
-            stream_opened_at = time.perf_counter()
-            self._log_llm_latency("stream opened", llm_request_started_at, stream_opened_at)
+            response = agent_service.run_streamed(input_items, system_prompt)
+            with self._stream_lock:
+                self._current_stream = response
 
             sentence_buffer = ""
             delimiters = set([".", "。", "!", "！", "?", "？", "\n"])
@@ -97,10 +92,10 @@ class TaskService(QObject):
             local_segment_index = 1
             current_segment_id = task_id * 10000 + local_segment_index
 
-            print("DEBUG: Entering LLM stream loop")
-            for chunk in response:
+            print("DEBUG: Entering agent stream loop")
+            async for event in response.stream_events():
                 if self._stop_event.is_set():
-                    print("Task stopped by user during LLM stream.")
+                    print("Task stopped by user during agent stream.")
                     break
 
                 if not first_stream_chunk_logged:
@@ -111,36 +106,36 @@ class TaskService(QObject):
                         time.perf_counter(),
                     )
 
-                try:
-                    content = self._extract_stream_content(chunk)
-                    if not content:
-                        continue
-
-                    if not first_text_token_logged:
-                        first_text_token_logged = True
-                        self._log_llm_latency(
-                            "first text token",
-                            llm_request_started_at,
-                            time.perf_counter(),
-                        )
-
-                    for char in content:
-                        if self._stop_event.is_set():
-                            break
-                        sentence_buffer += char
-                        self.segment_text_chunk.emit(current_segment_id, char)
-
-                        if char in delimiters:
-                            sentence = sentence_buffer.strip()
-                            if sentence:
-                                self.segment_ready.emit(current_segment_id, sentence)
-                                self._enqueue_tts_segment(current_segment_id, sentence)
-                            sentence_buffer = ""
-                            local_segment_index += 1
-                            current_segment_id = task_id * 10000 + local_segment_index
-                except (AttributeError, IndexError):
-                    # Skip chunks without the expected structure (e.g. role or finish_reason chunks)
+                if event.type == "run_item_stream_event":
+                    self._log_run_item_event(event)
                     continue
+
+                content = self._extract_stream_content(event)
+                if not content:
+                    continue
+
+                if not first_text_token_logged:
+                    first_text_token_logged = True
+                    self._log_llm_latency(
+                        "first text token",
+                        llm_request_started_at,
+                        time.perf_counter(),
+                    )
+
+                for char in content:
+                    if self._stop_event.is_set():
+                        break
+                    sentence_buffer += char
+                    self.segment_text_chunk.emit(current_segment_id, char)
+
+                    if char in delimiters:
+                        sentence = sentence_buffer.strip()
+                        if sentence:
+                            self.segment_ready.emit(current_segment_id, sentence)
+                            self._enqueue_tts_segment(current_segment_id, sentence)
+                        sentence_buffer = ""
+                        local_segment_index += 1
+                        current_segment_id = task_id * 10000 + local_segment_index
 
             # Process any remaining text if not stopped
             if not self._stop_event.is_set():
@@ -153,19 +148,16 @@ class TaskService(QObject):
         except Exception as e:
             print(f"Task error: {e}")
         finally:
+            with self._stream_lock:
+                self._current_stream = None
             self.task_finished.emit()
 
-    def _build_messages(
+    def _build_input_items(
         self,
         text: str,
-        system_prompt: str = None,
         history_json: str = None,
     ) -> list[dict[str, str]]:
-        messages: list[dict[str, str]] = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-
-        messages.extend(self._parse_history_messages(history_json))
+        messages = self._parse_history_messages(history_json)
         messages.append({"role": "user", "content": text})
         return messages
 
@@ -270,15 +262,29 @@ class TaskService(QObject):
         except Exception as e:
             print(f"TTS Exception: {e}")
 
-    def _extract_stream_content(self, chunk) -> str:
-        if not getattr(chunk, "choices", None):
+    def _extract_stream_content(self, event) -> str:
+        if event.type != "raw_response_event":
             return ""
 
-        delta = getattr(chunk.choices[0], "delta", None)
-        if delta is None:
+        data = getattr(event, "data", None)
+        data_type = getattr(data, "type", "")
+        if data_type not in {"response.output_text.delta", "response.text.delta"}:
             return ""
 
-        return self._normalize_delta_text(getattr(delta, "content", None))
+        delta = getattr(data, "delta", None)
+        return delta if isinstance(delta, str) else ""
+
+    def _log_run_item_event(self, event) -> None:
+        item = getattr(event, "item", None)
+        item_type = getattr(item, "type", "")
+        if item_type == "tool_call_item":
+            raw_item = getattr(item, "raw_item", None)
+            tool_name = getattr(raw_item, "name", "unknown")
+            print(f"Agent tool call: {tool_name}")
+        elif item_type == "tool_call_output_item":
+            output = str(getattr(item, "output", ""))
+            truncated_output = output[:200]
+            print(f"Agent tool output: {truncated_output}")
 
     def _normalize_delta_text(self, value) -> str:
         if isinstance(value, str):
@@ -307,7 +313,7 @@ class TaskService(QObject):
 
     def _supports_thinking(self) -> bool:
         model_name = str(self.model_name or "").strip().lower()
-        return self.enable_thinking and "qwen" in model_name
+        return "qwen" in model_name
 
     def _log_llm_latency(self, label: str, started_at: float, ended_at: float):
         latency_ms = (ended_at - started_at) * 1000
