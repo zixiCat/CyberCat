@@ -11,6 +11,7 @@ from service.config_service import config_service
 from service.qwen_service import parse_hotwords, qwen_service
 from service.qwen_tts_service import decode_audio_chunk, qwen_tts_service
 from service.task_service import task_service
+from utils.markdown_text import markdown_to_plain_text_single_line
 from utils.record_voice import recorder
 
 
@@ -438,8 +439,9 @@ class BackendService(QObject):
 
     @Slot(int, str)
     def _on_segment_ready(self, segment_id: int, text: str):
-        if text and text.strip():
-            self.show_danmu.emit(text)
+        sanitized_text = markdown_to_plain_text_single_line(text)
+        if sanitized_text:
+            self.show_danmu.emit(sanitized_text)
 
     @Slot(int, str)
     def _on_segment_audio_chunk(self, segment_id: int, chunk: str):
