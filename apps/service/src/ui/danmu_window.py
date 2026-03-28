@@ -1,4 +1,6 @@
+import ctypes
 import random
+import sys
 from dataclasses import dataclass
 
 from PySide6.QtCore import QElapsedTimer, QRect, Qt, QTimer
@@ -59,14 +61,43 @@ class DanmuManager(QWidget):
         self._frame_timer.setInterval(16)
         self._frame_timer.setTimerType(Qt.PreciseTimer)
         self._frame_timer.timeout.connect(self._advance_danmus)
-        self._frame_timer.start()
+        # Timer starts paused; activated when danmu items arrive.
 
         self._elapsed_timer = QElapsedTimer()
         self._elapsed_timer.start()
+        self._ex_style_applied = False
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._apply_transparent_ex_style()
+
+    def _apply_transparent_ex_style(self):
+        """Set WS_EX_TRANSPARENT so screenshot / window-detection tools
+        in other processes see through this overlay."""
+        if self._ex_style_applied or sys.platform != "win32":
+            return
+        hwnd = int(self.winId())
+        if hwnd == 0:
+            return
+        user32 = ctypes.windll.user32
+        GWL_EXSTYLE = -20
+        WS_EX_TRANSPARENT = 0x00000020
+        WS_EX_LAYERED = 0x00080000
+        WS_EX_NOACTIVATE = 0x08000000
+        ex = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE
+        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex)
+        self._ex_style_applied = True
 
     def add_danmu(self, text):
         if not text or not text.strip():
             return
+
+        if not self.isVisible():
+            self.show()
+        if not self._frame_timer.isActive():
+            self._elapsed_timer.restart()
+            self._frame_timer.start()
 
         # Choose a row (track)
         row = self._current_row % self._row_count
@@ -108,6 +139,10 @@ class DanmuManager(QWidget):
                 next_items.append(item)
 
         self.active_danmus = next_items
+        if not self.active_danmus:
+            self._frame_timer.stop()
+            self.hide()
+            return
         self.update()
 
     def paintEvent(self, event):

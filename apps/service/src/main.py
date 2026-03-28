@@ -41,9 +41,8 @@ def main():
     backend_service = BackendService()
     voice_listener = VoiceListener(backend_service)
 
-    # Initialize Danmu Manager
+    # Initialize Danmu Manager (starts hidden; auto-shows when items arrive)
     danmu_manager = DanmuManager()
-    danmu_manager.show()
     backend_service.show_danmu.connect(danmu_manager.add_danmu)
 
     # Initialize UI
