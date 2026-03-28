@@ -488,28 +488,34 @@ export const SpeechLab = () => {
               />
             </div>
 
-            {selectedVoice === 'auto' && (
-              <div className="flex-1">
-                <label className="
-                  mb-2 block text-sm font-medium text-zinc-500
+            <div className="flex-1">
+              <label className="
+                mb-2 block text-sm font-medium text-zinc-500
 
-                  dark:text-zinc-400
-                ">
-                  Random voice pool
-                </label>
-                <Select
-                  mode="multiple"
-                  className="w-full"
-                  value={randomVoicePool}
-                  onChange={(voices) => handleRandomVoicePoolChange(voices)}
-                  options={randomVoiceOptions.map((option) => ({
-                    label: option.label,
-                    value: option.value,
-                  }))}
-                  placeholder="Empty = all voices"
-                />
+                dark:text-zinc-400
+              ">
+                Random voice pool
+              </label>
+              <Select
+                mode="multiple"
+                className="w-full"
+                value={randomVoicePool}
+                onChange={(voices) => handleRandomVoicePoolChange(voices)}
+                options={randomVoiceOptions.map((option) => ({
+                  label: option.label,
+                  value: option.value,
+                }))}
+                placeholder="Empty = all voices"
+                disabled={selectedVoice !== 'auto'}
+              />
+              <div className="
+                mt-2 text-xs/5 text-zinc-500
+
+                dark:text-zinc-400
+              ">
+                Switch the voice selector to Auto to use the random voice pool.
               </div>
-            )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -522,18 +528,17 @@ export const SpeechLab = () => {
             >
               {ttsLoading ? 'Running TTS...' : 'Run TTS'}
             </Button>
-            {selectedVoice === 'auto' && (
-              <Button
-                type="text"
-                size="small"
-                onClick={() =>
-                  handleRandomVoicePoolChange(randomVoiceOptions.map((option) => option.value))
-                }
-                className="rounded-lg!"
-              >
-                Use all voices
-              </Button>
-            )}
+            <Button
+              type="text"
+              size="small"
+              onClick={() =>
+                handleRandomVoicePoolChange(randomVoiceOptions.map((option) => option.value))
+              }
+              className="rounded-lg!"
+              disabled={selectedVoice !== 'auto'}
+            >
+              Use all voices
+            </Button>
           </div>
 
           {ttsLoading && (
