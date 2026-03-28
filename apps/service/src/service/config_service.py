@@ -20,10 +20,9 @@ _FIELDS: dict[str, tuple[str, Any]] = {
         "https://dashscope.aliyuncs.com/compatible-mode/v1",
     ),
     "qwen_tts_base_url": ("QWEN_TTS_BASE_URL", "https://dashscope.aliyuncs.com/api/v1"),
+    "qwen_tts_model": ("QWEN_TTS_MODEL", "qwen-tts-latest"),
     "voice": ("VOICE", "auto"),
     "random_voice_pool": ("RANDOM_VOICE_POOL", ""),
-    "qwen_tts_instruct_model": ("QWEN_TTS_INSTRUCT_MODEL", "qwen3-tts-instruct-flash"),
-    "qwen_tts_normal_model": ("QWEN_TTS_NORMAL_MODEL", "qwen3-tts-flash"),
     "qwen_hotwords": ("QWEN_HOTWORDS", "CyberCat,zixiCat,OpenClaw"),
     "openai_api_key": ("OPENAI_API_KEY", ""),
     "openai_base_url": ("OPENAI_BASE_URL", ""),
@@ -35,6 +34,7 @@ REQUIRED_KEYS = ["qwen_api_key", "openai_api_key", "openai_base_url", "openai_mo
 SCHEMA_VERSION = 2
 DEFAULT_PROFILE_ID = "default"
 DEFAULT_PROFILE_NAME = "Default"
+LOCKED_QWEN_TTS_MODEL = "qwen-tts-latest"
 
 
 def _config_dir() -> Path:
@@ -103,7 +103,7 @@ class ConfigService:
         active_settings = self._active_settings()
         for key, value in updates.items():
             if key in _FIELDS:
-                active_settings[key] = self._coerce_value(value, _FIELDS[key][1])
+                active_settings[key] = self._coerce_setting_value(key, value, _FIELDS[key][1])
 
         self._persist()
 
@@ -203,6 +203,13 @@ class ConfigService:
 
         return str(value)
 
+    @staticmethod
+    def _coerce_setting_value(key: str, value: Any, default: Any) -> Any:
+        coerced_value = ConfigService._coerce_value(value, default)
+        if key == "qwen_tts_model":
+            return LOCKED_QWEN_TTS_MODEL
+        return coerced_value
+
     def _active_settings(self) -> dict[str, Any]:
         profile = self._profiles.get(self._active_profile_id)
         if not isinstance(profile, dict):
@@ -280,7 +287,7 @@ class ConfigService:
         if isinstance(saved_settings, dict):
             for key, (_, default) in _FIELDS.items():
                 if key in saved_settings and saved_settings[key] is not None:
-                    merged[key] = self._coerce_value(saved_settings[key], default)
+                    merged[key] = self._coerce_setting_value(key, saved_settings[key], default)
         return merged
 
     def _require_profile(self, profile_id: str) -> dict[str, Any]:

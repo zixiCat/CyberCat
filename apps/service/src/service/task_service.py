@@ -243,8 +243,6 @@ class TaskService(QObject):
                 text=text,
                 voice=selected_voice,
                 stream=True,
-                instructions="语速较快，带有明显的上扬语调",
-                optimize_instructions=True,
             )
 
             for chunk in response:

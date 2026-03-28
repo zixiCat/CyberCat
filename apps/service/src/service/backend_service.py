@@ -6,7 +6,11 @@ import base64
 import tempfile
 import threading
 from PySide6.QtCore import QObject, Signal, Slot
-from constants.tts import get_voice_options, normalize_voice_pool
+from constants.tts import (
+    AUTO_VOICE,
+    get_voice_options,
+    normalize_voice_pool,
+)
 from service.config_service import config_service
 from service.qwen_service import parse_hotwords, qwen_service
 from service.qwen_tts_service import decode_audio_chunk, qwen_tts_service
@@ -186,8 +190,10 @@ class BackendService(QObject):
         # Update QwenTTS
         qwen_tts_service.api_key = config_service.get("qwen_api_key")
         qwen_tts_service.set_base_url(config_service.get("qwen_tts_base_url"))
-        qwen_tts_service.set_default_voice(config_service.get("voice", "auto"))
-        qwen_tts_service.set_random_voice_pool(config_service.get("random_voice_pool", ""))
+        qwen_tts_service.refresh_voice_catalog(
+            default_voice=config_service.get("voice", AUTO_VOICE),
+            random_voice_pool=config_service.get("random_voice_pool", ""),
+        )
         # Update LLM agent configuration
         task_service.reload_config()
 

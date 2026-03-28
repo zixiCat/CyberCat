@@ -206,6 +206,14 @@ export const SpeechLab = () => {
     () => voiceOptions.filter((option) => option.value !== 'auto'),
     [voiceOptions],
   );
+  const activeModel = useMemo(
+    () => randomVoiceOptions[0]?.model || 'qwen-tts-latest',
+    [randomVoiceOptions],
+  );
+  const supportedVoiceNames = useMemo(
+    () => randomVoiceOptions.map((option) => option.label),
+    [randomVoiceOptions],
+  );
 
   const backendRecordingSupported = recordingSupportMode === 'backend';
 
@@ -433,6 +441,22 @@ export const SpeechLab = () => {
         </div>
 
         <div className="mt-3 flex flex-col gap-3">
+          <Alert
+            type="info"
+            showIcon
+            message={
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>Active model:</span>
+                  <span className="cybercat-inline-badge">{activeModel}</span>
+                </div>
+                <div className="text-xs/5 text-current/80">
+                  Supported voices in this model: {supportedVoiceNames.join(', ') || 'Loading...'}
+                </div>
+              </div>
+            }
+          />
+
           <Input.TextArea
             value={ttsText}
             onChange={(event) => setTtsText(event.target.value)}

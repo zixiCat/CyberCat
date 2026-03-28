@@ -1,4 +1,4 @@
-import { Alert, Button, Input } from 'antd';
+import { Alert, Button, Input, Select } from 'antd';
 import {
   Eye,
   EyeOff,
@@ -23,6 +23,7 @@ interface SettingsField {
   multiline?: boolean;
   rows?: number;
   description?: string;
+  options?: Array<{ label: string; value: string }>;
 }
 
 type SettingsValue = string | boolean;
@@ -90,6 +91,16 @@ const SPEECH_FIELDS: SettingsField[] = [
     required: false,
     secret: false,
     description: 'DashScope multimodal endpoint used for text-to-speech.',
+  },
+  {
+    key: 'qwen_tts_model',
+    label: 'Qwen TTS Model',
+    placeholder: 'qwen-tts-latest',
+    required: false,
+    secret: false,
+    description:
+      'Aliyun TTS model is locked to qwen-tts-latest. This enables Cherry, Ethan, Serena, Chelsie, Jada, Dylan, and Sunny.',
+    options: [{ label: 'qwen-tts-latest', value: 'qwen-tts-latest' }],
   },
   {
     key: 'qwen_hotwords',
@@ -515,6 +526,17 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                               }
                               placeholder={field.placeholder}
                               autoComplete="off"
+                            />
+                          ) : field.options ? (
+                            <Select
+                              size="large"
+                              className="w-full"
+                              value={getStringValue(field.key) || undefined}
+                              onChange={(value) =>
+                                setValues((prev) => ({ ...prev, [field.key]: value }))
+                              }
+                              options={field.options}
+                              placeholder={field.placeholder}
                             />
                           ) : (
                             <Input

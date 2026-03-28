@@ -9,9 +9,14 @@ from typing import Any
 import dashscope
 import numpy as np
 import sounddevice as sd
-from constants.tts import AUTO_VOICE, get_all_voices, get_voice_model, normalize_voice_pool
+from constants.tts import (
+    AUTO_VOICE,
+    coerce_voice_selection,
+    get_all_voices,
+    get_voice_model,
+    normalize_voice_pool,
+)
 from service.config_service import config_service
-
 
 DEFAULT_QWEN_TTS_BASE_URL = "https://dashscope.aliyuncs.com/api/v1"
 
@@ -48,11 +53,15 @@ class QwenTTSService:
         self.api_key = config_service.get("qwen_api_key")
         self.base_url = config_service.get("qwen_tts_base_url") or DEFAULT_QWEN_TTS_BASE_URL
         self.apply_base_url()
-        self.default_voice = config_service.get("voice", AUTO_VOICE)
         self.sample_rate = 24000
         self.channels = 1
-        self.voices = get_all_voices()
-        self.random_voice_pool = normalize_voice_pool(config_service.get("random_voice_pool", ""))
+        self.voices: list[str] = []
+        self.default_voice = AUTO_VOICE
+        self.random_voice_pool: list[str] = []
+        self.refresh_voice_catalog(
+            default_voice=config_service.get("voice", AUTO_VOICE),
+            random_voice_pool=config_service.get("random_voice_pool", ""),
+        )
         self._session_lock = threading.Lock()
         self._current_session: _PlaybackSession | None = None
         self._request_condition = threading.Condition()
@@ -60,7 +69,21 @@ class QwenTTSService:
         self._worker = threading.Thread(target=self._run_playback_loop, daemon=True)
         self._worker.start()
 
+    def refresh_voice_catalog(
+        self,
+        default_voice: str | None = None,
+        random_voice_pool: list[str] | str | None = None,
+    ):
+        self.voices = get_all_voices()
+        next_default_voice = self.default_voice if default_voice is None else default_voice
+        self.default_voice = coerce_voice_selection(next_default_voice)
+        next_random_voice_pool = (
+            self.random_voice_pool if random_voice_pool is None else random_voice_pool
+        )
+        self.random_voice_pool = normalize_voice_pool(next_random_voice_pool)
+
     def set_default_voice(self, voice: str):
+        self.voices = get_all_voices()
         if voice != AUTO_VOICE and voice not in self.voices:
             raise ValueError(f"Unsupported voice: {voice}")
         self.default_voice = voice
@@ -69,6 +92,7 @@ class QwenTTSService:
         return self.default_voice
 
     def set_random_voice_pool(self, voices: list[str] | str | None):
+        self.voices = get_all_voices()
         self.random_voice_pool = normalize_voice_pool(voices)
 
     def get_random_voice_pool(self) -> list[str]:
@@ -82,6 +106,7 @@ class QwenTTSService:
         dashscope.base_http_api_url = self.base_url or DEFAULT_QWEN_TTS_BASE_URL
 
     def resolve_voice(self, voice: str | None = None) -> tuple[str, str]:
+        self.voices = get_all_voices()
         selected_voice = voice or self.default_voice
         if selected_voice == AUTO_VOICE:
             voice_pool = self.random_voice_pool or self.voices
@@ -292,7 +317,7 @@ class QwenTTSService:
         if session is not None:
             self._cancel_session(session)
 
-    def speak(self, text: str, voice: str = None):
+    def speak(self, text: str, voice: str | None = None):
         """
         Synthesizes text to speech using Qwen-TTS and plays it immediately.
         """
