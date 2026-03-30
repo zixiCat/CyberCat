@@ -32,7 +32,7 @@ def main():
         app.setWindowIcon(QIcon(str(app_icon)))
 
     from service.backend_service import BackendService
-    from pronounce_service import start_service as start_pronounce_service
+    from service.pronounce_service import start_service as start_pronounce_service
     from service.voice_listener import VoiceListener
     from ui.main_window import MainWindow
     from ui.danmu_window import DanmuManager

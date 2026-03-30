@@ -1,7 +1,9 @@
-import time
 import threading
+import time
+
 import pyperclip
 from pynput import keyboard
+
 from service.qwen_tts_service import qwen_tts_service
 
 _lock = threading.Lock()
