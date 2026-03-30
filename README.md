@@ -38,3 +38,10 @@ That is all you need. You do not need to install anything else manually.
 - If Windows shows a security prompt, choose to continue if you trust this release
 - If the app does not open after installation, restart Windows and try again
 - If a shortcut does not respond, make sure another app is not already using the same keys
+
+## Release (Maintainers)
+
+- Sync the version everywhere with `npm run release -- 1.0.0`
+- Build the installer after syncing with `npm run release:win -- 1.0.0`
+- Build and publish in one step with `npm run release:win -- 1.0.0 --publish --generate-notes`
+- If you need a custom asset such as `./build-artifact.zip`, append `--asset ./build-artifact.zip`
