@@ -1,39 +1,41 @@
 ---
 name: Frontend UI Standards
-description: Engineering standards for the CyberCat Chatbot web app, prioritizing react-use hooks and Ant Design 6.
+description: Common standards for React frontend code in apps/chatbot. Use when editing components, hooks, styling, state management, routing, or frontend-to-backend integration.
 applyTo: 'apps/chatbot/**'
 ---
 
 # Web Standards
 
-## 1. React 19 & State Strategy
+## 1. React 19 & Feature State
 
-- **Hook Preference:** Avoid native React hooks (e.g., `useState`, `useEffect`) where a `react-use` alternative exists.
-  - **State:** Use `useSetState` instead of `useState` for object-based state to allow partial updates.
-  - **Lifecycle:** Use `useMount` and `useUnmount` instead of empty-dependency `useEffect` hooks.
-  - **Utilities:** Utilize the full `react-use` suite (e.g., `useDebounce`).
-- **State/Props Management:**
-  - **Trigger:** Use when data is required by >=3 components in the hierarchy.
-  - **Constraint:** Do not use React Context or Prop Drilling for shared state.
-  - **Pattern:** Favor small, atomic stores over a single monolithic store.
+- Do not introduce new `useState`, just use `useSetState` from `react-use` as the default local state hook.
+- Use `zustand` for shared local feature state and global app state. Prefer a small store over React Context for mutable state that spans multiple components.
+- Keep using `react-use` lifecycle helpers such as `useMount` and `useUnmount` when they simplify setup and cleanup.
+- Keep state close to the feature. When state is shared inside one feature, colocate a focused `zustand` store with that feature instead of lifting state into distant parents.
+- Do not add new broad React Context layers for feature state. Reuse existing top-level providers only for infrastructure concerns, not mutable feature state.
+- Follow React 19 patterns already present in the app, including `useEffectEvent` where event handlers need stable closures.
 
 ## 2. UI Component Strategy (Ant Design 6)
 
 - **Hybrid Styling:**
-  - **Ant Design 6:** Mandatory for complex components: `Table`, `Modal`, `Form`, `DatePicker`, `Select`.
-  - **Tailwind v4 CSS:** Use exclusively for layout (Flex/Grid), spacing, and micro-components.
-  - **Spacing Standard:** Use a factor of `5` (e.g., `p-5`, `m-5`, `gap-5`) for all container spacing and layouts.
+	- **Ant Design 6:** Mandatory for complex components: `Table`, `Modal`, `Form`, `DatePicker`, `Select`.
+	- **Tailwind v4 CSS:** Use exclusively for layout (Flex/Grid), spacing, and micro-components.
+	- **Spacing Standard:** Use a factor of `5` (e.g., `p-5`, `m-5`, `gap-5`) for all container spacing and layouts.
 - **Icons:** Use `lucide-react` for all UI icons.
 - **Typography:** Minimum font size is **14px** for readability.
 - **Theming:** Default to Light Mode. Apply `dark:` utility classes for Tailwind dark mode support (e.g., `dark:text-white`).
 - **Animations:** Use `motion/react` for all UI transitions; avoid raw CSS animations.
 
-## 3. Data Fetching & API
+## 3. Desktop Bridge & Backend Calls
 
-- **API Client:** Use `@workshop/workshop-openapi` (aliased as `$api`), which is powered by `openapi-fetch` for type-safe requests generated from the OpenAPI schema.
+- The frontend runs inside the desktop shell and talks to Python through Qt WebChannel, not through a shared OpenAPI client.
+- Treat `window.backend` as the primary backend boundary. Guard for its absence during startup and retry only where the existing app already does so.
+- Keep QWebChannel setup centralized at the app level. Feature modules should consume the established `window.backend` surface instead of reinitializing the bridge.
+- Serialize structured payloads explicitly across the bridge and parse JSON carefully at the boundary.
+- Do not invent `fetch`, Axios, or generated API clients for frontend-to-service calls unless the project architecture changes first.
 
 ## 4. Coding Patterns
 
 - **Line Endings:** Enforce **LF** for all project files.
-- **Components:** Functional components only, with explicit TypeScript interfaces for props.
-- **File Lines:** If possible, keep each file under 300 lines to make the code easier to read and maintain.
+- **Components:** Functional components only, with explicit TypeScript interfaces for public props.
+- **Module Size:** When editing a large existing file, extract a helper, hook, or subcomponent if it meaningfully reduces complexity, but do not refactor purely to satisfy a hard line-count target.
