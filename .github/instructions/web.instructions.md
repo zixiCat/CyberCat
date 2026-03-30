@@ -1,6 +1,6 @@
 ---
 name: Frontend UI Standards
-description: Common standards for React frontend code in apps/chatbot. Use when editing components, hooks, styling, state management, routing, or frontend-to-backend integration.
+description: Common standards for React frontend code. Use when editing components, hooks, styling, state management, routing, or frontend-to-backend integration.
 applyTo: 'apps/chatbot/**'
 ---
 
@@ -38,4 +38,4 @@ applyTo: 'apps/chatbot/**'
 
 - **Line Endings:** Enforce **LF** for all project files.
 - **Components:** Functional components only, with explicit TypeScript interfaces for public props.
-- **Module Size:** When editing a large existing file, extract a helper, hook, or subcomponent if it meaningfully reduces complexity, but do not refactor purely to satisfy a hard line-count target.
+- **Module Size:** When editing a large existing file, extract a helper, hook, or sub-component if it meaningfully reduces complexity, but do not refactor purely to satisfy a hard line-count target.
