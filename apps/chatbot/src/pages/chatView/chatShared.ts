@@ -6,6 +6,7 @@ export const AUDIO_CHANNEL_INDEX = 0;
 export const EMPTY_LENGTH = 0;
 export const PCM_MAX = 32768.0;
 export const RETRY_DELAY_MS = 100;
+export const SEGMENT_TASK_DIVISOR = 10000;
 export const SESSION_SAVE_DELAY_MS = 250;
 export const MESSAGE_INPUT_ID = 'chat-message-input';
 export const THINKING_FIELD_KEY = 'openai_enable_thinking';
@@ -28,19 +29,19 @@ export const ensureBackendSignalBindings = (backend: NonNullable<Window['backend
 
   window.cyberCatBackendSignalsBound = true;
 
-  backend.task_started.connect((taskId: number, prompt: string) => {
+  backend.task_started?.connect((taskId: number, prompt: string) => {
     window.cyberCatBackendSignalHandlers?.onTaskStarted?.(taskId, prompt);
   });
-  backend.segment_text_chunk.connect((segmentId: number, chunk: string) => {
+  backend.segment_text_chunk?.connect((segmentId: number, chunk: string) => {
     window.cyberCatBackendSignalHandlers?.onSegmentTextChunk?.(segmentId, chunk);
   });
-  backend.segment_audio_chunk.connect((segmentId: number, audioBase64: string) => {
+  backend.segment_audio_chunk?.connect((segmentId: number, audioBase64: string) => {
     window.cyberCatBackendSignalHandlers?.onSegmentAudioChunk?.(segmentId, audioBase64);
   });
-  backend.segment_finished.connect((segmentId: number) => {
+  backend.segment_finished?.connect((segmentId: number) => {
     window.cyberCatBackendSignalHandlers?.onSegmentFinished?.(segmentId);
   });
-  backend.task_finished.connect(() => {
+  backend.task_finished?.connect(() => {
     window.cyberCatBackendSignalHandlers?.onTaskFinished?.();
   });
   backend.window_state_changed?.connect((maximized: boolean) => {

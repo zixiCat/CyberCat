@@ -1,7 +1,9 @@
 import { Alert, Button, Input, Select } from 'antd';
 import { LoaderCircle, Mic, Play, Square, Upload, Waves } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useSetState } from 'react-use';
 
+import { loadBackendJson, parseBackendJson, waitForBackend } from '../backendShared';
 import { AsrTestResult, BackendBridge, TtsTestResult, VoiceOption } from '../chatView/types';
 
 const EMPTY_SIZE = 0;
@@ -20,6 +22,24 @@ interface NativeRecordingResult {
   extension?: string;
   filename?: string;
   error?: string;
+}
+
+interface SpeechLabState {
+  voiceOptions: VoiceOption[];
+  selectedVoice: string;
+  randomVoicePool: string[];
+  ttsText: string;
+  ttsLoading: boolean;
+  ttsResult: TtsTestResult | null;
+  ttsAudioSrc: string;
+  asrLoading: boolean;
+  asrResult: AsrTestResult | null;
+  selectedAudioName: string;
+  audioPayload: { base64: string; extension: string } | null;
+  asrAudioSrc: string;
+  recording: boolean;
+  browserRecordingSupported: boolean;
+  recordingSupportMode: RecordingSupportMode;
 }
 
 const createTtsTestRequestId = () =>
@@ -65,21 +85,40 @@ const ensureSpeechLabSignalBindings = (backend: BackendBridge) => {
 };
 
 export const SpeechLab = () => {
-  const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState('auto');
-  const [randomVoicePool, setRandomVoicePool] = useState<string[]>([]);
-  const [ttsText, setTtsText] = useState('Hello from CyberCat. This is a speech lab test.');
-  const [ttsLoading, setTtsLoading] = useState(false);
-  const [ttsResult, setTtsResult] = useState<TtsTestResult | null>(null);
-  const [ttsAudioSrc, setTtsAudioSrc] = useState('');
-  const [asrLoading, setAsrLoading] = useState(false);
-  const [asrResult, setAsrResult] = useState<AsrTestResult | null>(null);
-  const [selectedAudioName, setSelectedAudioName] = useState('');
-  const [audioPayload, setAudioPayload] = useState<{ base64: string; extension: string } | null>(null);
-  const [asrAudioSrc, setAsrAudioSrc] = useState('');
-  const [recording, setRecording] = useState(false);
-  const [browserRecordingSupported, setBrowserRecordingSupported] = useState(false);
-  const [recordingSupportMode, setRecordingSupportMode] = useState<RecordingSupportMode>('unavailable');
+  const [state, setState] = useSetState<SpeechLabState>({
+    voiceOptions: [],
+    selectedVoice: 'auto',
+    randomVoicePool: [],
+    ttsText: 'Hello from CyberCat. This is a speech lab test.',
+    ttsLoading: false,
+    ttsResult: null,
+    ttsAudioSrc: '',
+    asrLoading: false,
+    asrResult: null,
+    selectedAudioName: '',
+    audioPayload: null,
+    asrAudioSrc: '',
+    recording: false,
+    browserRecordingSupported: false,
+    recordingSupportMode: 'unavailable',
+  });
+  const {
+    voiceOptions,
+    selectedVoice,
+    randomVoicePool,
+    ttsText,
+    ttsLoading,
+    ttsResult,
+    ttsAudioSrc,
+    asrLoading,
+    asrResult,
+    selectedAudioName,
+    audioPayload,
+    asrAudioSrc,
+    recording,
+    browserRecordingSupported,
+    recordingSupportMode,
+  } = state;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -95,13 +134,15 @@ export const SpeechLab = () => {
       Boolean(navigator.mediaDevices?.getUserMedia) &&
       typeof MediaRecorder !== 'undefined';
 
-    setBrowserRecordingSupported(browserSupported);
-    setRecordingSupportMode(browserSupported ? 'browser' : 'unavailable');
+    setState({
+      browserRecordingSupported: browserSupported,
+      recordingSupportMode: browserSupported ? 'browser' : 'unavailable',
+    });
 
     window.cyberCatSpeechLabSignalHandlers = {
       onTtsTestStarted: (requestId: string) => {
         if (activeTtsRequestIdRef.current === requestId) {
-          setTtsLoading(true);
+          setState({ ttsLoading: true });
         }
       },
       onTtsTestFinished: (requestId: string, resultJson: string) => {
@@ -112,68 +153,82 @@ export const SpeechLab = () => {
         activeTtsRequestIdRef.current = null;
 
         try {
-          const result = JSON.parse(resultJson) as TtsTestResult;
-          setTtsResult(result);
-          if (result.ok && result.audioBase64) {
-            setTtsAudioSrc(`data:audio/wav;base64,${result.audioBase64}`);
-          }
+          const result = parseBackendJson<TtsTestResult>(resultJson, 'TTS test result');
+          setState({
+            ttsLoading: false,
+            ttsResult: result,
+            ttsAudioSrc:
+              result.ok && result.audioBase64
+                ? `${AUDIO_WAV_DATA_URL_PREFIX}${result.audioBase64}`
+                : '',
+          });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to parse TTS test result.';
-          setTtsResult({ ok: false, error: message });
-        } finally {
-          setTtsLoading(false);
+          setState({
+            ttsLoading: false,
+            ttsResult: { ok: false, error: message },
+            ttsAudioSrc: '',
+          });
         }
       },
     };
 
-    const setupBackend = () => {
-      if (cancelled) {
-        return;
-      }
+    const setupBackend = async () => {
+      const backend = await waitForBackend({
+        retryDelayMs: BACKEND_RETRY_DELAY_MS,
+        isCancelled: () => cancelled,
+      });
 
-      if (!window.backend) {
-        window.setTimeout(setupBackend, BACKEND_RETRY_DELAY_MS);
+      if (!backend) {
         return;
       }
 
       const backendSupportsRecording = Boolean(
-        window.backend.start_asr_test_recording && window.backend.stop_asr_test_recording,
+        backend.start_asr_test_recording && backend.stop_asr_test_recording,
       );
 
-      if (browserSupported) {
-        setRecordingSupportMode('browser');
-      } else if (backendSupportsRecording) {
-        setRecordingSupportMode('backend');
-      } else {
-        setRecordingSupportMode('backend-restart-required');
+      setState({
+        recordingSupportMode: browserSupported
+          ? 'browser'
+          : backendSupportsRecording
+            ? 'backend'
+            : 'backend-restart-required',
+      });
+
+      ensureSpeechLabSignalBindings(backend);
+
+      const [voiceOptionsResult, activeVoiceResult, randomVoicePoolResult] = await Promise.allSettled([
+        loadBackendJson<VoiceOption[]>(() => backend.get_voice_options?.(), 'Speech lab voice options'),
+        backend.get_active_voice ? backend.get_active_voice() : Promise.resolve(''),
+        loadBackendJson<string[]>(() => backend.get_random_voice_pool?.(), 'Speech lab random voice pool'),
+      ]);
+
+      if (cancelled) {
+        return;
       }
 
-      ensureSpeechLabSignalBindings(window.backend);
+      if (voiceOptionsResult.status === 'fulfilled') {
+        setState({ voiceOptions: voiceOptionsResult.value });
+      } else {
+        console.error('Failed to load voice options:', voiceOptionsResult.reason);
+      }
 
-      window.backend.get_voice_options().then((voiceOptionsJson: string) => {
-        try {
-          setVoiceOptions(JSON.parse(voiceOptionsJson) as VoiceOption[]);
-        } catch (error) {
-          console.error('Failed to load voice options:', error);
+      if (activeVoiceResult.status === 'fulfilled') {
+        if (activeVoiceResult.value) {
+          setState({ selectedVoice: activeVoiceResult.value });
         }
-      });
+      } else {
+        console.error('Failed to load active voice:', activeVoiceResult.reason);
+      }
 
-      window.backend.get_active_voice().then((voice: string) => {
-        if (voice) {
-          setSelectedVoice(voice);
-        }
-      });
-
-      window.backend.get_random_voice_pool().then((voicesJson: string) => {
-        try {
-          setRandomVoicePool(JSON.parse(voicesJson) as string[]);
-        } catch (error) {
-          console.error('Failed to load random voice pool:', error);
-        }
-      });
+      if (randomVoicePoolResult.status === 'fulfilled') {
+        setState({ randomVoicePool: randomVoicePoolResult.value });
+      } else {
+        console.error('Failed to load random voice pool:', randomVoicePoolResult.reason);
+      }
     };
 
-    setupBackend();
+    void setupBackend();
 
     return () => {
       cancelled = true;
@@ -184,7 +239,7 @@ export const SpeechLab = () => {
         void window.backend.stop_asr_test_recording();
       }
     };
-  }, []);
+  }, [setState]);
 
   useEffect(() => {
     return () => {
@@ -218,7 +273,7 @@ export const SpeechLab = () => {
   const backendRecordingSupported = recordingSupportMode === 'backend';
 
   const handleRandomVoicePoolChange = (voices: string[]) => {
-    setRandomVoicePool(voices);
+    setState({ randomVoicePool: voices });
     window.backend?.set_random_voice_pool(JSON.stringify(voices));
   };
 
@@ -233,10 +288,12 @@ export const SpeechLab = () => {
       URL.revokeObjectURL(asrAudioSrc);
     }
 
-    setSelectedAudioName(fileName);
-    setAudioPayload({ base64: nextBase64, extension: nextExtension });
-    setAsrAudioSrc(URL.createObjectURL(file));
-    setAsrResult(null);
+    setState({
+      selectedAudioName: fileName,
+      audioPayload: { base64: nextBase64, extension: nextExtension },
+      asrAudioSrc: URL.createObjectURL(file),
+      asrResult: null,
+    });
   };
 
   const handleFileSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -249,7 +306,7 @@ export const SpeechLab = () => {
       await handleAudioFile(file, file.name);
     } catch (error) {
       console.error('Failed to load audio file:', error);
-      setAsrResult({ ok: false, error: 'Failed to read the selected audio file.' });
+      setState({ asrResult: { ok: false, error: 'Failed to read the selected audio file.' } });
     } finally {
       event.target.value = '';
     }
@@ -257,41 +314,43 @@ export const SpeechLab = () => {
 
   const startRecording = async () => {
     if (recordingSupportMode === 'backend-restart-required') {
-      setAsrResult({
-        ok: false,
-        error: 'Recording support requires restarting the CyberCat desktop app so the updated backend can load.',
+      setState({
+        asrResult: {
+          ok: false,
+          error:
+            'Recording support requires restarting the CyberCat desktop app so the updated backend can load.',
+        },
       });
       return;
     }
 
     if (recordingSupportMode === 'unavailable') {
-      setAsrResult({
-        ok: false,
-        error: 'Audio recording is not available in this runtime. Upload an audio file instead.',
+      setState({
+        asrResult: {
+          ok: false,
+          error: 'Audio recording is not available in this runtime. Upload an audio file instead.',
+        },
       });
       return;
     }
 
     if (!browserRecordingSupported && backendRecordingSupported) {
       try {
-        const resultJson = await window.backend?.start_asr_test_recording?.();
-        if (!resultJson) {
-          throw new Error('Recording backend is not ready.');
-        }
-
-        const result = JSON.parse(resultJson) as NativeRecordingResult;
+        const result = await loadBackendJson<NativeRecordingResult>(
+          () => window.backend?.start_asr_test_recording?.(),
+          'Native recording start',
+        );
         if (!result.ok) {
           throw new Error(result.error || 'Microphone access was denied or unavailable.');
         }
 
         nativeRecordingActiveRef.current = true;
-        setRecording(true);
-        setAsrResult(null);
+        setState({ recording: true, asrResult: null });
       } catch (error) {
         console.error('Unable to start native recording:', error);
         const message =
           error instanceof Error ? error.message : 'Microphone access was denied or unavailable.';
-        setAsrResult({ ok: false, error: message });
+        setState({ asrResult: { ok: false, error: message } });
       }
       return;
     }
@@ -314,33 +373,32 @@ export const SpeechLab = () => {
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
         mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
         mediaStreamRef.current = null;
-        setRecording(false);
+        setState({ recording: false });
 
         try {
           await handleAudioFile(blob, `recording.${extension}`, extension);
         } catch (error) {
           console.error('Failed to process recording:', error);
-          setAsrResult({ ok: false, error: 'Failed to process the recorded audio.' });
+          setState({ asrResult: { ok: false, error: 'Failed to process the recorded audio.' } });
         }
       };
       mediaRecorder.start();
-      setRecording(true);
-      setAsrResult(null);
+      setState({ recording: true, asrResult: null });
     } catch (error) {
       console.error('Unable to start recording:', error);
-      setAsrResult({ ok: false, error: 'Microphone access was denied or unavailable.' });
+      setState({
+        asrResult: { ok: false, error: 'Microphone access was denied or unavailable.' },
+      });
     }
   };
 
   const stopRecording = async () => {
     if (!browserRecordingSupported && backendRecordingSupported) {
       try {
-        const resultJson = await window.backend?.stop_asr_test_recording?.();
-        if (!resultJson) {
-          throw new Error('Recording backend is not ready.');
-        }
-
-        const result = JSON.parse(resultJson) as NativeRecordingResult;
+        const result = await loadBackendJson<NativeRecordingResult>(
+          () => window.backend?.stop_asr_test_recording?.(),
+          'Native recording stop',
+        );
         if (!result.ok || !result.audioBase64) {
           throw new Error(result.error || 'Failed to process the recorded audio.');
         }
@@ -351,17 +409,19 @@ export const SpeechLab = () => {
 
         const extension = result.extension || 'wav';
         const filename = result.filename || `recording.${extension}`;
-        setSelectedAudioName(filename);
-        setAudioPayload({ base64: result.audioBase64, extension });
-        setAsrAudioSrc(`${AUDIO_WAV_DATA_URL_PREFIX}${result.audioBase64}`);
-        setAsrResult(null);
+        setState({
+          selectedAudioName: filename,
+          audioPayload: { base64: result.audioBase64, extension },
+          asrAudioSrc: `${AUDIO_WAV_DATA_URL_PREFIX}${result.audioBase64}`,
+          asrResult: null,
+        });
       } catch (error) {
         console.error('Failed to stop native recording:', error);
         const message = error instanceof Error ? error.message : 'Failed to process the recorded audio.';
-        setAsrResult({ ok: false, error: message });
+        setState({ asrResult: { ok: false, error: message } });
       } finally {
         nativeRecordingActiveRef.current = false;
-        setRecording(false);
+        setState({ recording: false });
       }
       return;
     }
@@ -376,9 +436,7 @@ export const SpeechLab = () => {
 
     const requestId = createTtsTestRequestId();
     activeTtsRequestIdRef.current = requestId;
-    setTtsLoading(true);
-    setTtsResult(null);
-    setTtsAudioSrc('');
+    setState({ ttsLoading: true, ttsResult: null, ttsAudioSrc: '' });
 
     try {
       await waitForNextPaint();
@@ -386,8 +444,10 @@ export const SpeechLab = () => {
     } catch (error) {
       activeTtsRequestIdRef.current = null;
       const message = error instanceof Error ? error.message : 'Failed to run TTS test.';
-      setTtsResult({ ok: false, error: message });
-      setTtsLoading(false);
+      setState({
+        ttsLoading: false,
+        ttsResult: { ok: false, error: message },
+      });
     }
   };
 
@@ -396,20 +456,19 @@ export const SpeechLab = () => {
       return;
     }
 
-    setAsrLoading(true);
-    setAsrResult(null);
+    setState({ asrLoading: true, asrResult: null });
     try {
       await waitForNextPaint();
-      const resultJson = await window.backend.transcribe_audio_base64(
-        audioPayload.base64,
-        audioPayload.extension,
+      const result = await loadBackendJson<AsrTestResult>(
+        () => window.backend?.transcribe_audio_base64?.(audioPayload.base64, audioPayload.extension),
+        'ASR test',
       );
-      setAsrResult(JSON.parse(resultJson) as AsrTestResult);
+      setState({ asrResult: result });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to run ASR test.';
-      setAsrResult({ ok: false, error: message });
+      setState({ asrResult: { ok: false, error: message } });
     } finally {
-      setAsrLoading(false);
+      setState({ asrLoading: false });
     }
   };
 
@@ -459,7 +518,7 @@ export const SpeechLab = () => {
 
           <Input.TextArea
             value={ttsText}
-            onChange={(event) => setTtsText(event.target.value)}
+            onChange={(event) => setState({ ttsText: event.target.value })}
             rows={4}
             placeholder="Enter text to synthesize"
           />
@@ -480,7 +539,7 @@ export const SpeechLab = () => {
               <Select
                 className="w-full"
                 value={selectedVoice}
-                onChange={setSelectedVoice}
+                onChange={(value) => setState({ selectedVoice: value })}
                 options={voiceOptions.map((option) => ({
                   label: option.label,
                   value: option.value,

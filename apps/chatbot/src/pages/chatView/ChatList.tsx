@@ -1,23 +1,23 @@
 import { Music2 } from 'lucide-react';
 import { memo, type RefObject } from 'react';
 
+import { useChatSessionStore } from './chatSessionStore';
 import { ChatTaskCard } from './ChatTaskCard';
-import { ChunkSegment, Session } from './types';
+import { useChatUiStore } from './chatUiStore';
+import { ChunkSegment } from './types';
 
 interface ChatListProps {
-  selectedSession: Session | undefined;
-  sessions: Session[];
-  playingSegmentId: number | null;
-  currentReceivingSegmentId: number | null;
   playAudio: (segment: ChunkSegment) => void;
   chatScrollContainerRef: RefObject<HTMLDivElement | null>;
-  chatScrollPaddingBottom: number;
   registerTaskElement: (taskId: number, element: HTMLDivElement | null) => void;
 }
 
 const ZERO_ITEMS = 0;
 
-const EmptyChatState = memo(({ selectedSession, sessions }: Pick<ChatListProps, 'selectedSession' | 'sessions'>) => {
+const EmptyChatState = memo(() => {
+  const sessions = useChatSessionStore((state) => state.sessions);
+  const selectedSessionId = useChatSessionStore((state) => state.selectedSessionId);
+  const selectedSession = sessions.find((session) => session.id === selectedSessionId);
   const cyberCatLogoSrc = 'CyberCat.png';
   const message = selectedSession
     ? 'Ask anything and CyberCat will stream the response in real time.'
@@ -80,15 +80,16 @@ const EmptyChatState = memo(({ selectedSession, sessions }: Pick<ChatListProps, 
 });
 
 export const ChatList = memo(({
-  selectedSession,
-  sessions,
-  playingSegmentId,
-  currentReceivingSegmentId,
   playAudio,
   chatScrollContainerRef,
-  chatScrollPaddingBottom,
   registerTaskElement,
 }: ChatListProps) => {
+  const sessions = useChatSessionStore((state) => state.sessions);
+  const selectedSessionId = useChatSessionStore((state) => state.selectedSessionId);
+  const playingSegmentId = useChatUiStore((state) => state.playingSegmentId);
+  const currentReceivingSegmentId = useChatUiStore((state) => state.currentReceivingSegmentId);
+  const chatScrollPaddingBottom = useChatUiStore((state) => state.chatScrollPaddingBottom);
+  const selectedSession = sessions.find((session) => session.id === selectedSessionId);
   const tasks = selectedSession?.tasks ?? [];
   const hasMessages = tasks.length > ZERO_ITEMS;
 
@@ -103,7 +104,7 @@ export const ChatList = memo(({
       }
     >
       {!hasMessages ? (
-        <EmptyChatState selectedSession={selectedSession} sessions={sessions} />
+        <EmptyChatState />
       ) : (
         tasks.map((task) => (
           <ChatTaskCard

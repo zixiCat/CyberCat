@@ -61,6 +61,7 @@ export interface SpeechLabBackendSignalHandlers {
 
 export interface BackendBridge {
   start_task?: (text: string, systemPrompt?: string, historyJson?: string) => void;
+  stop_task?: () => void;
   start_tts_test?: (requestId: string, text: string, voice: string) => void;
   start_asr_test_recording?: () => Promise<string>;
   stop_asr_test_recording?: () => Promise<string>;
@@ -68,6 +69,15 @@ export interface BackendBridge {
   minimize_window?: () => void;
   maximize_window?: () => void;
   close_window?: () => void;
+  get_config_status?: () => Promise<string>;
+  get_available_prompts?: () => Promise<string>;
+  get_prompt_content?: (file: string) => Promise<string>;
+  set_active_system_prompt?: (content: string) => void;
+  load_sessions?: () => Promise<string>;
+  save_session?: (sessionId: string, sessionJson: string) => void | Promise<void>;
+  delete_session?: (sessionId: string) => void | Promise<void>;
+  get_audio_file?: (filename: string) => Promise<string>;
+  save_audio_chunks?: (chunksJson: string) => Promise<string>;
   get_settings?: () => Promise<string>;
   save_settings?: (settingsJson: string) => Promise<string>;
   get_settings_profiles?: () => Promise<string>;
@@ -75,10 +85,21 @@ export interface BackendBridge {
   rename_settings_profile?: (profileId: string, profileName: string) => Promise<string>;
   delete_settings_profile?: (profileId: string) => Promise<string>;
   select_settings_profile?: (profileId: string) => Promise<string>;
+  get_voice_options?: () => Promise<string>;
+  get_active_voice?: () => Promise<string>;
+  set_active_voice?: (voice: string) => void | Promise<void>;
+  get_random_voice_pool?: () => Promise<string>;
+  set_random_voice_pool?: (voicesJson: string) => void | Promise<void>;
+  transcribe_audio_base64?: (audioBase64: string, extension: string) => Promise<string>;
+  task_started?: SignalHandler<[number, string]>;
+  segment_text_chunk?: SignalHandler<[number, string]>;
+  segment_audio_chunk?: SignalHandler<[number, string]>;
+  segment_finished?: SignalHandler<[number]>;
+  task_finished?: SignalHandler<[]>;
   tts_test_started?: SignalHandler<[string]>;
   tts_test_finished?: SignalHandler<[string, string]>;
   window_state_changed?: SignalHandler<[boolean]>;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ChatBackendSignalHandlers {

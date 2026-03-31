@@ -1,61 +1,58 @@
 import { useRef } from 'react';
 import { useMount, useUnmount } from 'react-use';
 
-import { ensureBackendSignalBindings, formatTimestamp, RETRY_DELAY_MS } from './chatShared';
+import { loadBackendJson, parseBackendJson, waitForBackend } from '../backendShared';
+import {
+  ensureBackendSignalBindings,
+  formatTimestamp,
+  RETRY_DELAY_MS,
+  SEGMENT_TASK_DIVISOR,
+} from './chatShared';
+import { useChatSessionStore } from './chatSessionStore';
+import { useChatUiStore } from './chatUiStore';
 import { ChatBackendSignalHandlers, ChunkSegment, Session, Task } from './types';
 
 const ZERO_DELAY_MS = 0;
-const SEGMENT_TASK_DIVISOR = 10000;
 const ZERO_PROMPTS = 0;
 
 interface UseChatBootstrapOptions {
-  ensureActiveSessionId: () => string;
   finalizePendingSegments: () => void;
   handleSegmentFinished: (segmentId: number) => void;
-  hydrateSessions: (sessions: Session[]) => void;
   processAudioChunk: (segmentId: number, audioBase64: string) => void;
   reloadProfileSettings: () => Promise<void>;
   scrollTaskToTop: (taskId: number, behavior?: ScrollBehavior) => void;
-  setAvailablePrompts: (prompts: string[]) => void;
-  setIsTaskRunning: (value: boolean) => void;
-  setIsWindowMaximized: (value: boolean) => void;
-  setSelectedPromptContent: (content: string) => void;
-  setSelectedPromptFile: (file: string) => void;
-  updateSessions: (updater: (prev: Session[]) => Session[]) => void;
 }
 
 export const useChatBootstrap = ({
-  ensureActiveSessionId,
   finalizePendingSegments,
   handleSegmentFinished,
-  hydrateSessions,
   processAudioChunk,
   reloadProfileSettings,
   scrollTaskToTop,
-  setAvailablePrompts,
-  setIsTaskRunning,
-  setIsWindowMaximized,
-  setSelectedPromptContent,
-  setSelectedPromptFile,
-  updateSessions,
 }: UseChatBootstrapOptions) => {
-  const retryTimerRef = useRef<number | null>(null);
+  const cancelledRef = useRef(false);
 
   useMount(() => {
-    const setupBackendHandlers = () => {
-      if (!window.backend) {
-        retryTimerRef.current = window.setTimeout(setupBackendHandlers, RETRY_DELAY_MS);
+    cancelledRef.current = false;
+
+    const setupBackendHandlers = async () => {
+      const backend = await waitForBackend({
+        retryDelayMs: RETRY_DELAY_MS,
+        isCancelled: () => cancelledRef.current,
+      });
+
+      if (!backend) {
         return;
       }
 
       const signalHandlers: ChatBackendSignalHandlers = {
         onTaskStarted: (taskId: number, prompt: string) => {
-          setIsTaskRunning(true);
+          useChatUiStore.getState().setUiState({ isTaskRunning: true });
           const nowStr = formatTimestamp();
 
           window.setTimeout(() => {
-            const targetSessionId = ensureActiveSessionId();
-            updateSessions((prev) =>
+            const targetSessionId = useChatSessionStore.getState().ensureActiveSessionId();
+            useChatSessionStore.getState().updateSessions((prev) =>
               prev.map((session) => {
                 if (session.id !== targetSessionId || session.tasks.find((task) => task.id === taskId)) {
                   return session;
@@ -72,7 +69,7 @@ export const useChatBootstrap = ({
         },
         onSegmentTextChunk: (segmentId: number, chunk: string) => {
           const taskId = Math.floor(segmentId / SEGMENT_TASK_DIVISOR);
-          updateSessions((prev) =>
+          useChatSessionStore.getState().updateSessions((prev) =>
             prev.map((session) => {
               const taskExists = session.tasks.some((task) => task.id === taskId);
               if (!taskExists) {
@@ -114,46 +111,61 @@ export const useChatBootstrap = ({
           handleSegmentFinished(segmentId);
         },
         onTaskFinished: () => {
-          setIsTaskRunning(false);
+          useChatUiStore.getState().setUiState({ isTaskRunning: false });
           finalizePendingSegments();
         },
         onWindowStateChanged: (maximized: boolean) => {
-          setIsWindowMaximized(Boolean(maximized));
+          useChatUiStore.getState().setUiState({ isWindowMaximized: Boolean(maximized) });
         },
       };
 
       window.cyberCatBackendSignalHandlers = signalHandlers;
-      ensureBackendSignalBindings(window.backend);
+      ensureBackendSignalBindings(backend);
 
       void reloadProfileSettings();
 
-      window.backend.get_available_prompts().then((promptsJson: string) => {
-        try {
-          const prompts = JSON.parse(promptsJson) as string[];
-          setAvailablePrompts(prompts);
+      const [promptsResult, sessionsResult] = await Promise.allSettled([
+        loadBackendJson<string[]>(() => backend.get_available_prompts?.(), 'Available prompts'),
+        backend.load_sessions ? backend.load_sessions() : Promise.resolve(''),
+      ]);
+
+      if (promptsResult.status === 'fulfilled') {
+        const prompts = promptsResult.value;
+        if (!cancelledRef.current) {
+          useChatUiStore.getState().setUiState({ availablePrompts: prompts });
           if (prompts.length === ZERO_PROMPTS) {
             return;
           }
 
           const defaultPrompt = prompts.includes('Default.md') ? 'Default.md' : prompts[0];
-          setSelectedPromptFile(defaultPrompt);
-          window.backend?.get_prompt_content(defaultPrompt).then((content: string) => {
-            setSelectedPromptContent(content);
-            window.backend?.set_active_system_prompt(content);
-          });
-        } catch (error) {
-          console.error('Failed to parse prompts:', error);
-        }
-      });
+          useChatUiStore.getState().setUiState({ selectedPromptFile: defaultPrompt });
+          backend
+            .get_prompt_content?.(defaultPrompt)
+            .then((content: string) => {
+              if (cancelledRef.current) {
+                return;
+              }
 
-      window.backend.load_sessions().then((sessionsJson: string) => {
+              useChatUiStore.getState().setUiState({ selectedPromptContent: content });
+              backend.set_active_system_prompt?.(content);
+            })
+            .catch((error: unknown) => {
+              console.error('Failed to load the default prompt content:', error);
+            });
+        }
+      } else {
+        console.error('Failed to load prompts:', promptsResult.reason);
+      }
+
+      if (sessionsResult.status === 'fulfilled') {
         try {
+          const sessionsJson = sessionsResult.value;
           if (!sessionsJson) {
-            hydrateSessions([]);
+            useChatSessionStore.getState().hydrateSessions([]);
             return;
           }
 
-          const loadedSessions = JSON.parse(sessionsJson) as Session[];
+          const loadedSessions = parseBackendJson<Session[]>(sessionsJson, 'Chat sessions');
           const restored = (loadedSessions || []).map((session: Session) => ({
             ...session,
             tasks: (session.tasks || []).map((task: Task) => ({
@@ -167,20 +179,22 @@ export const useChatBootstrap = ({
           }));
 
           restored.sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
-          hydrateSessions(restored);
+          if (!cancelledRef.current) {
+            useChatSessionStore.getState().hydrateSessions(restored);
+          }
         } catch (error) {
           console.error('Failed to parse sessions:', error);
         }
-      });
+      } else {
+        console.error('Failed to load sessions:', sessionsResult.reason);
+      }
     };
 
-    setupBackendHandlers();
+    void setupBackendHandlers();
   });
 
   useUnmount(() => {
-    if (retryTimerRef.current !== null) {
-      window.clearTimeout(retryTimerRef.current);
-    }
+    cancelledRef.current = true;
     window.cyberCatBackendSignalHandlers = {};
   });
 };

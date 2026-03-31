@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
-import { useTheme } from '../App';
+import { loadBackendJson } from '../backendShared';
 import {
   buildSessionHistory,
   isThinkingSupportedForModel,
@@ -8,6 +8,7 @@ import {
   parseStoredVoicePool,
   THINKING_FIELD_KEY,
 } from './chatShared';
+import { useChatUiStore } from './chatUiStore';
 import { ChatViewLayout } from './ChatViewLayout';
 import { VoiceOption } from './types';
 import { useChatAudio } from './useChatAudio';
@@ -18,78 +19,58 @@ import { useDesktopMessageInputFocus } from './useDesktopMessageInputFocus';
 const ZERO_OFFSET = 0;
 const DEFAULT_CHAT_SCROLL_PADDING_BOTTOM = 240;
 
+interface SaveSettingsResult {
+  ok: boolean;
+  error?: string;
+}
+
 export const ChatView = () => {
-  const { theme, setTheme } = useTheme();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
-  const [availablePrompts, setAvailablePrompts] = useState<string[]>([]);
-  const [selectedPromptFile, setSelectedPromptFile] = useState<string>('Default.md');
-  const [selectedPromptContent, setSelectedPromptContent] = useState<string>('');
-  const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState<string>('auto');
-  const [randomVoicePool, setRandomVoicePool] = useState<string[]>([]);
-  const [isWindowMaximized, setIsWindowMaximized] = useState(false);
-  const [isTaskRunning, setIsTaskRunning] = useState<boolean>(false);
-  const [autoPlay, setAutoPlay] = useState<boolean>(
-    () => localStorage.getItem('autoPlay') !== 'false',
-  );
-  const [thinkingEnabled, setThinkingEnabledState] = useState(false);
-  const [thinkingSupported, setThinkingSupported] = useState(false);
-  const [chatScrollPaddingBottom, setChatScrollPaddingBottom] = useState(
-    DEFAULT_CHAT_SCROLL_PADDING_BOTTOM,
-  );
-  const autoPlayRef = useRef(autoPlay);
+  const selectedPromptFile = useChatUiStore((state) => state.selectedPromptFile);
+  const selectedPromptContent = useChatUiStore((state) => state.selectedPromptContent);
+  const isTaskRunning = useChatUiStore((state) => state.isTaskRunning);
+  const setUiState = useChatUiStore((state) => state.setUiState);
   const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const taskElementRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const pendingTaskScrollIdRef = useRef<number | null>(null);
   const {
     sessions,
     selectedSessionId,
-    setSelectedSessionId,
-    sessionsRef,
-    updateSessions,
-    clearCurrentChat,
     createNewSession,
     ensureActiveSessionId,
-    hydrateSessions,
-  } = useChatSessions(selectedPromptFile);
+  } = useChatSessions();
   const {
-    playingSegmentId,
-    currentReceivingSegmentIdRef,
     playAudio,
     processAudioChunk,
     handleSegmentFinished,
     finalizePendingSegments,
     stopAudioPlayback,
-  } = useChatAudio({ autoPlayRef, sessionsRef, updateSessions });
-
-  useEffect(() => {
-    autoPlayRef.current = autoPlay;
-    localStorage.setItem('autoPlay', String(autoPlay));
-  }, [autoPlay]);
+  } = useChatAudio();
 
   const setThinkingEnabled = useCallback((enabled: boolean) => {
+    const { thinkingEnabled, thinkingSupported } = useChatUiStore.getState();
     const previousEnabled = thinkingEnabled;
     const nextEnabled = Boolean(enabled && thinkingSupported);
-    setThinkingEnabledState(nextEnabled);
+    setUiState({ thinkingEnabled: nextEnabled });
 
     const backend = window.backend;
     if (!backend?.save_settings) {
       return;
     }
 
-    backend
-      .save_settings(JSON.stringify({ [THINKING_FIELD_KEY]: nextEnabled }))
-      .then((resultJson: string) => {
-        const result = JSON.parse(resultJson);
+    loadBackendJson<SaveSettingsResult>(
+      () => backend.save_settings?.(JSON.stringify({ [THINKING_FIELD_KEY]: nextEnabled })),
+      'Thinking mode settings',
+    )
+      .then((result) => {
         if (!result.ok) {
           throw new Error(result.error || 'Failed to update thinking mode.');
         }
       })
       .catch((error: unknown) => {
         console.error('Failed to update thinking mode:', error);
-        setThinkingEnabledState(previousEnabled);
+        setUiState({ thinkingEnabled: previousEnabled });
       });
-  }, [thinkingEnabled, thinkingSupported]);
+  }, [setUiState]);
 
   const reloadProfileSettings = useCallback(async () => {
     const backend = window.backend;
@@ -98,38 +79,50 @@ export const ChatView = () => {
     }
 
     try {
-      const [settingsJson, voice, voiceOptionsJson] = await Promise.all([
-        backend.get_settings(),
+      const [settings, voice, parsedVoiceOptions] = await Promise.all([
+        loadBackendJson<Record<string, string | boolean>>(
+          () => backend.get_settings?.(),
+          'Profile settings',
+        ),
         backend.get_active_voice(),
-        backend.get_voice_options(),
+        loadBackendJson<VoiceOption[]>(() => backend.get_voice_options?.(), 'Voice options'),
       ]);
 
-      const settings = JSON.parse(settingsJson) as Record<string, string | boolean>;
-      const parsedVoiceOptions = JSON.parse(voiceOptionsJson) as VoiceOption[];
       const modelName = typeof settings.openai_model === 'string' ? settings.openai_model : '';
       const storedRandomVoicePool = parseStoredVoicePool(settings.random_voice_pool);
       const supported = isThinkingSupportedForModel(modelName);
 
-      setVoiceOptions(parsedVoiceOptions);
-      setSelectedVoice(voice || 'auto');
-      setRandomVoicePool(storedRandomVoicePool);
-      setThinkingSupported(supported);
-      setThinkingEnabledState(supported && Boolean(settings[THINKING_FIELD_KEY]));
+      setUiState({
+        voiceOptions: parsedVoiceOptions,
+        selectedVoice: voice || 'auto',
+        randomVoicePool: storedRandomVoicePool,
+        thinkingSupported: supported,
+        thinkingEnabled: supported && Boolean(settings[THINKING_FIELD_KEY]),
+      });
     } catch (error) {
       console.error('Failed to reload profile settings:', error);
     }
-  }, []);
+  }, [setUiState]);
 
   useEffect(() => {
     const session = sessions.find((s) => s.id === selectedSessionId);
-    if (session?.systemPromptFile && session.systemPromptFile !== selectedPromptFile) {
-      setSelectedPromptFile(session.systemPromptFile);
-      window.backend?.get_prompt_content(session.systemPromptFile).then((content: string) => {
-        setSelectedPromptContent(content);
-        window.backend?.set_active_system_prompt(content);
-      });
+    const backend = window.backend;
+    if (!session?.systemPromptFile || session.systemPromptFile === selectedPromptFile || !backend?.get_prompt_content) {
+      return;
     }
-  }, [selectedPromptFile, selectedSessionId, sessions]);
+
+    setUiState({ selectedPromptFile: session.systemPromptFile });
+    backend
+      .get_prompt_content(session.systemPromptFile)
+      .then((content: string) => {
+        setUiState({ selectedPromptContent: content });
+        backend.set_active_system_prompt?.(content);
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to sync the session prompt:', error);
+      });
+  }, [selectedPromptFile, selectedSessionId, sessions, setUiState]);
+
   const scrollTaskToTop = useCallback((taskId: number, behavior: ScrollBehavior = 'smooth') => {
     const container = chatScrollContainerRef.current;
     const taskElement = taskElementRefs.current.get(taskId);
@@ -146,9 +139,7 @@ export const ChatView = () => {
       container.clientHeight - containerPaddingTop - taskElement.offsetHeight,
     );
 
-    setChatScrollPaddingBottom((currentPaddingBottom) =>
-      currentPaddingBottom === nextPaddingBottom ? currentPaddingBottom : nextPaddingBottom,
-    );
+    setUiState({ chatScrollPaddingBottom: nextPaddingBottom });
 
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
@@ -158,7 +149,8 @@ export const ChatView = () => {
         });
       });
     });
-  }, []);
+  }, [setUiState]);
+
   const registerTaskElement = useCallback((taskId: number, element: HTMLDivElement | null) => {
     if (element) {
       taskElementRefs.current.set(taskId, element);
@@ -170,6 +162,7 @@ export const ChatView = () => {
 
     taskElementRefs.current.delete(taskId);
   }, [scrollTaskToTop]);
+
   const handleSendMessage = useCallback((text: string) => {
     const prompt = text.trim();
     const backend = window.backend;
@@ -178,17 +171,19 @@ export const ChatView = () => {
     }
 
     const targetSessionId = ensureActiveSessionId();
-    const targetSession = sessionsRef.current.find((session) => session.id === targetSessionId);
+    const targetSession = sessions.find((session) => session.id === targetSessionId);
     const historyJson = JSON.stringify(buildSessionHistory(targetSession));
 
     backend.start_task(prompt, selectedPromptContent, historyJson);
     return true;
-  }, [ensureActiveSessionId, isTaskRunning, selectedPromptContent, sessionsRef]);
+  }, [ensureActiveSessionId, isTaskRunning, selectedPromptContent, sessions]);
+
   const stopStreaming = useCallback(() => {
-    window.backend?.stop_task();
+    window.backend?.stop_task?.();
     stopAudioPlayback();
-    setIsTaskRunning(false);
-  }, [stopAudioPlayback]);
+    setUiState({ isTaskRunning: false });
+  }, [setUiState, stopAudioPlayback]);
+
   const startWindowDrag = () => {
     window.backend?.start_drag?.();
   };
@@ -204,68 +199,30 @@ export const ChatView = () => {
   const closeWindow = () => {
     window.backend?.close_window?.();
   };
+
   useDesktopMessageInputFocus({ inputId: MESSAGE_INPUT_ID, createNewSession });
   useChatBootstrap({
-    ensureActiveSessionId,
     finalizePendingSegments,
     handleSegmentFinished,
-    hydrateSessions,
     processAudioChunk,
     reloadProfileSettings,
     scrollTaskToTop,
-    setAvailablePrompts,
-    setIsTaskRunning,
-    setIsWindowMaximized,
-    setSelectedPromptContent,
-    setSelectedPromptFile,
-    updateSessions,
   });
-
-  const selectedSession = sessions.find((s) => s.id === selectedSessionId);
 
   return (
     <ChatViewLayout
-      autoPlay={autoPlay}
-      availablePrompts={availablePrompts}
       chatScrollContainerRef={chatScrollContainerRef}
-      chatScrollPaddingBottom={chatScrollPaddingBottom}
-      clearCurrentChat={clearCurrentChat}
       closeWindow={closeWindow}
-      createNewSession={createNewSession}
-      currentReceivingSegmentId={currentReceivingSegmentIdRef.current}
       handleSendMessage={handleSendMessage}
       inputId={MESSAGE_INPUT_ID}
-      isSidebarCollapsed={isSidebarCollapsed}
-      isTaskRunning={isTaskRunning}
-      isWindowMaximized={isWindowMaximized}
       minimizeWindow={minimizeWindow}
       playAudio={playAudio}
-      playingSegmentId={playingSegmentId}
-      randomVoicePool={randomVoicePool}
       registerTaskElement={registerTaskElement}
       reloadProfileSettings={reloadProfileSettings}
-      selectedPromptFile={selectedPromptFile}
-      selectedSession={selectedSession}
-      selectedSessionId={selectedSessionId}
-      selectedVoice={selectedVoice}
-      sessions={sessions}
-      setAutoPlay={setAutoPlay}
-      setIsSidebarCollapsed={setIsSidebarCollapsed}
-      setRandomVoicePool={setRandomVoicePool}
-      setSelectedPromptContent={setSelectedPromptContent}
-      setSelectedPromptFile={setSelectedPromptFile}
-      setSelectedSessionId={setSelectedSessionId}
-      setSelectedVoice={setSelectedVoice}
-      setTheme={setTheme}
       setThinkingEnabled={setThinkingEnabled}
       startWindowDrag={startWindowDrag}
       stopStreaming={stopStreaming}
-      thinkingEnabled={thinkingEnabled}
-      thinkingSupported={thinkingSupported}
-      theme={theme}
       toggleMaximizeWindow={toggleMaximizeWindow}
-      updateSessions={updateSessions}
-      voiceOptions={voiceOptions}
     />
   );
 };
