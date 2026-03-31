@@ -1,20 +1,14 @@
 import { MessageSquare } from 'lucide-react';
 
-import { Session } from './types';
+import { useChatSessionStore } from './chatSessionStore';
+import { useChatUiStore } from './chatUiStore';
 
-interface SidebarProps {
-  sessions: Session[];
-  selectedSessionId: string | null;
-  setSelectedSessionId: (id: string | null) => void;
-  isCollapsed: boolean;
-}
+export const Sidebar = () => {
+  const sessions = useChatSessionStore((state) => state.sessions);
+  const selectedSessionId = useChatSessionStore((state) => state.selectedSessionId);
+  const setSelectedSessionId = useChatSessionStore((state) => state.setSelectedSessionId);
+  const isCollapsed = useChatUiStore((state) => state.isSidebarCollapsed);
 
-export const Sidebar = ({
-  sessions,
-  selectedSessionId,
-  setSelectedSessionId,
-  isCollapsed,
-}: SidebarProps) => {
   return (
     <div
       className={`

@@ -56,5 +56,11 @@ output/
 .tools/
 *.wav
 
+# BBDown local auth artifacts
+apps/service/src/scripts/bilibili/BBDown.data
+apps/service/src/scripts/bilibili/BBDownTV.data
+apps/service/src/scripts/bilibili/BBDownApp.data
+apps/service/src/scripts/bilibili/qrcode.png
+
 # Z
 z.*

@@ -1,120 +1,50 @@
-import { Alert, Button, Input, Select } from 'antd';
+import { Alert, Button } from 'antd';
 import {
-  Eye,
-  EyeOff,
-  KeyRound,
   Save,
+  ScanQrCode,
   Settings,
   Sparkles,
   Waves,
   X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useSetState } from 'react-use';
 
+import { loadBackendJson, waitForBackend } from '../backendShared';
+import { BilibiliAuthPanel } from './BilibiliAuthPanel';
+import { SettingsFieldList } from './SettingsFieldList';
+import {
+  BILIBILI_FIELDS,
+  REQUIRED_FIELDS,
+  SETTINGS_FIELDS,
+  SettingsValue,
+  SPEECH_FIELDS,
+} from './settingsFields';
 import { SpeechLab } from './SpeechLab';
 
-interface SettingsField {
-  key: string;
-  label: string;
-  placeholder: string;
-  required: boolean;
-  secret: boolean;
-  multiline?: boolean;
-  rows?: number;
-  description?: string;
-  options?: Array<{ label: string; value: string }>;
-}
-
-type SettingsValue = string | boolean;
 const NAVIGATE_BACK_DELTA = -1;
-const DEFAULT_TEXTAREA_ROWS = 4;
 
 interface SettingsMessage {
   type: 'success' | 'error';
   text: string;
 }
 
-const loadSettingsValues = async (): Promise<Record<string, SettingsValue>> => {
-  if (!window.backend?.get_settings) {
-    throw new Error('Settings backend is not ready.');
-  }
+interface SaveSettingsResult {
+  ok: boolean;
+  error?: string;
+}
 
-  return JSON.parse(await window.backend.get_settings()) as Record<string, SettingsValue>;
-};
+interface SettingsViewState {
+  values: Record<string, SettingsValue>;
+  saving: boolean;
+  message: SettingsMessage | null;
+  revealedKeys: Set<string>;
+  activeSection: 'ai' | 'bilibili' | 'speech';
+}
 
-const SETTINGS_FIELDS: SettingsField[] = [
-  {
-    key: 'openai_api_key',
-    label: 'OpenAI API Key',
-    placeholder: 'sk-...',
-    required: true,
-    secret: true,
-  },
-  {
-    key: 'openai_base_url',
-    label: 'OpenAI Base URL',
-    placeholder: 'https://api.openai.com/v1',
-    required: true,
-    secret: false,
-  },
-  {
-    key: 'openai_model',
-    label: 'OpenAI Model',
-    placeholder: 'gpt-4o',
-    required: true,
-    secret: false,
-  },
-];
-
-const SPEECH_FIELDS: SettingsField[] = [
-  {
-    key: 'qwen_api_key',
-    label: 'Qwen API Key (DashScope)',
-    placeholder: 'sk-...',
-    required: true,
-    secret: true,
-    description: 'Used only for Qwen TTS and ASR, not for the chat LLM.',
-  },
-  {
-    key: 'qwen_asr_base_url',
-    label: 'Qwen ASR URL',
-    placeholder: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    required: false,
-    secret: false,
-    description: 'OpenAI-compatible endpoint used for speech recognition.',
-  },
-  {
-    key: 'qwen_tts_base_url',
-    label: 'Qwen TTS URL',
-    placeholder: 'https://dashscope.aliyuncs.com/api/v1',
-    required: false,
-    secret: false,
-    description: 'DashScope multimodal endpoint used for text-to-speech.',
-  },
-  {
-    key: 'qwen_tts_model',
-    label: 'Qwen TTS Model',
-    placeholder: 'qwen-tts-latest',
-    required: false,
-    secret: false,
-    description:
-      'Aliyun TTS model is locked to qwen-tts-latest. This enables Cherry, Ethan, Serena, Chelsie, Jada, Dylan, and Sunny.',
-    options: [{ label: 'qwen-tts-latest', value: 'qwen-tts-latest' }],
-  },
-  {
-    key: 'qwen_hotwords',
-    label: 'Qwen Hotwords',
-    placeholder: 'CyberCat,zixiCat,OpenClaw',
-    required: false,
-    secret: false,
-    multiline: true,
-    rows: DEFAULT_TEXTAREA_ROWS,
-    description: 'Enter one term per line or separate with commas to help ASR recognize project-specific words.',
-  },
-];
-
-const REQUIRED_FIELDS = [...SETTINGS_FIELDS, ...SPEECH_FIELDS].filter((field) => field.required);
+const loadSettingsValues = async () =>
+  loadBackendJson<Record<string, SettingsValue>>(() => window.backend?.get_settings?.(), 'Settings');
 
 interface SettingsViewProps {
   onSaved?: () => void;
@@ -123,15 +53,19 @@ interface SettingsViewProps {
 export const SettingsView = ({ onSaved }: SettingsViewProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [values, setValues] = useState<Record<string, SettingsValue>>({});
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<SettingsMessage | null>(null);
-  const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
-  const [activeSection, setActiveSection] = useState<'ai' | 'speech'>('ai');
+  const [state, setState] = useSetState<SettingsViewState>({
+    values: {},
+    saving: false,
+    message: null,
+    revealedKeys: new Set<string>(),
+    activeSection: 'ai',
+  });
+  const { values, saving, message, revealedKeys, activeSection } = state;
   const backgroundLocation = location.state?.backgroundLocation;
 
-  const syncStateFromBackend = async () => {
-    setValues(await loadSettingsValues());
+  const refreshSettingsValues = async () => {
+    const nextValues = await loadSettingsValues();
+    setState({ values: nextValues });
   };
 
   const handleClose = () => {
@@ -147,17 +81,20 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
     let cancelled = false;
 
     const load = async () => {
-      if (cancelled) {
-        return;
-      }
+      const backend = await waitForBackend({
+        retryDelayMs: 150,
+        isCancelled: () => cancelled,
+      });
 
-      if (!window.backend?.get_settings) {
-        window.setTimeout(load, 150);
+      if (!backend?.get_settings || cancelled) {
         return;
       }
 
       try {
-        await syncStateFromBackend();
+        const nextValues = await loadSettingsValues();
+        if (!cancelled) {
+          setState({ values: nextValues });
+        }
       } catch {
         // ignore initial load failures and allow the user to retry via actions
       }
@@ -168,17 +105,18 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setState]);
 
   const handleSave = async () => {
     if (!window.backend?.save_settings) return;
-    setSaving(true);
-    setMessage(null);
+    setState({ saving: true, message: null });
     try {
-      const resultJson = await window.backend.save_settings(JSON.stringify(values));
-      const result = JSON.parse(resultJson);
+      const result = await loadBackendJson<SaveSettingsResult>(
+        () => window.backend?.save_settings?.(JSON.stringify(values)),
+        'Save settings',
+      );
       if (result.ok) {
-        setMessage({ type: 'success', text: 'Settings saved.' });
+        setState({ message: { type: 'success', text: 'Settings saved.' } });
         if (onSaved) {
           onSaved();
         } else if (backgroundLocation) {
@@ -187,26 +125,35 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
           navigate('/chat', { replace: true });
         }
       } else {
-        setMessage({ type: 'error', text: result.error || 'Failed to save.' });
+        setState({ message: { type: 'error', text: result.error || 'Failed to save.' } });
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to save.';
-      setMessage({ type: 'error', text: msg });
+      setState({ message: { type: 'error', text: msg } });
     } finally {
-      setSaving(false);
+      setState({ saving: false });
     }
   };
 
   const toggleReveal = (key: string) => {
-    setRevealedKeys((prev) => {
-      const next = new Set(prev);
+    setState((currentState) => {
+      const next = new Set(currentState.revealedKeys);
       if (next.has(key)) {
         next.delete(key);
       } else {
         next.add(key);
       }
-      return next;
+      return { revealedKeys: next };
     });
+  };
+
+  const setValue = (key: string, value: SettingsValue) => {
+    setState((currentState) => ({
+      values: {
+        ...currentState.values,
+        [key]: value,
+      },
+    }));
   };
 
   const getStringValue = (key: string) => (typeof values[key] === 'string' ? values[key] : '');
@@ -225,7 +172,10 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
         ${
           isOverlay
-            ? 'fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 backdrop-blur-[3px]'
+            ? `
+              fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3
+              backdrop-blur-[3px]
+            `
             : 'min-h-screen p-3'
         }
       `}
@@ -288,7 +238,7 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
             <nav className="space-y-2">
               <button
                 type="button"
-                onClick={() => setActiveSection('ai')}
+                onClick={() => setState({ activeSection: 'ai' })}
                 className={`
                   cybercat-nav-item
 
@@ -320,7 +270,39 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
               <button
                 type="button"
-                onClick={() => setActiveSection('speech')}
+                onClick={() => setState({ activeSection: 'bilibili' })}
+                className={`
+                  cybercat-nav-item
+
+                  ${
+                  activeSection === 'bilibili'
+                    ? `
+                      cybercat-nav-item-active text-zinc-900
+
+                      dark:text-zinc-100
+                    `
+                    : `
+                      text-zinc-600
+
+                      hover:border-zinc-200 hover:bg-white hover:text-zinc-900
+
+                      dark:text-zinc-300
+
+                      dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+                    `
+                }
+                `}
+              >
+                <ScanQrCode size={16} />
+                <span>
+                  <span className="block text-sm font-medium">Bilibili</span>
+                  <span className="block text-xs opacity-70">Local cookie and QR login</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setState({ activeSection: 'speech' })}
                 className={`
                   cybercat-nav-item
 
@@ -382,7 +364,11 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
               dark:text-zinc-100
             ">
-              {activeSection === 'ai' ? 'AI & APIs' : 'Speech Tools'}
+              {activeSection === 'ai'
+                ? 'AI & APIs'
+                : activeSection === 'bilibili'
+                  ? 'Bilibili'
+                  : 'Speech Tools'}
             </h2>
             <p className="
               mt-1 text-sm text-zinc-500
@@ -391,13 +377,62 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
             ">
               {activeSection === 'ai'
                 ? 'Set the providers and credentials the assistant depends on.'
-                : 'Tune recognition terms and run quick speech checks without leaving the page.'}
+                : activeSection === 'bilibili'
+                  ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
+                  : 'Tune recognition terms and run quick speech checks without leaving the page.'}
             </p>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             <div className="flex flex-col gap-4 pb-2">
+              {message && (
+                <Alert
+                  type={message.type === 'success' ? 'success' : 'error'}
+                  message={message.text}
+                  showIcon
+                />
+              )}
+
+              {hasRequiredMissing && (
+                <Alert
+                  type="warning"
+                  message={`Missing required: ${requiredMissing.map((f) => f.label).join(', ')}`}
+                  showIcon
+                />
+              )}
+
               {activeSection === 'ai' ? (
+                <div className="cybercat-panel p-5">
+                  <div className="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="
+                        text-sm font-semibold text-zinc-900
+
+                        dark:text-zinc-100
+                      ">
+                        AI & APIs
+                      </h3>
+                      <p className="
+                        mt-1 text-xs text-zinc-500
+
+                        dark:text-zinc-400
+                      ">
+                        Models, keys, and chat endpoints
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-6">
+                    <SettingsFieldList
+                      fields={SETTINGS_FIELDS}
+                      values={values}
+                      revealedKeys={revealedKeys}
+                      onValueChange={setValue}
+                      onToggleReveal={toggleReveal}
+                      showRequiredMarker
+                    />
+                  </div>
+                </div>
+              ) : activeSection === 'bilibili' ? (
                 <>
                   <div className="cybercat-panel p-5">
                     <div className="mb-5 flex items-start justify-between gap-3">
@@ -407,83 +442,29 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
                           dark:text-zinc-100
                         ">
-                          AI & APIs
+                          BBDown Settings
                         </h3>
                         <p className="
                           mt-1 text-xs text-zinc-500
 
                           dark:text-zinc-400
                         ">
-                          Models, keys, and chat endpoints
+                          Target URL and cookie for local Bilibili downloads
                         </p>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-6">
-                      {SETTINGS_FIELDS.map((field) => (
-                        <div key={field.key}>
-                          <label className="
-                            mb-2 block text-sm font-medium text-zinc-600
-
-                            dark:text-zinc-300
-                          ">
-                            {field.label}
-                            {field.required && <span className="ml-1 text-red-400">*</span>}
-                          </label>
-                          <Input
-                            value={getStringValue(field.key)}
-                            onChange={(e) =>
-                              setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                            }
-                            placeholder={field.placeholder}
-                            type={field.secret && !revealedKeys.has(field.key) ? 'password' : 'text'}
-                            autoComplete="off"
-                            suffix={
-                              field.secret ? (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleReveal(field.key)}
-                                  className="
-                                    cursor-pointer border-none bg-transparent p-0 text-zinc-400
-
-                                    hover:text-zinc-600
-
-                                    dark:hover:text-zinc-300
-                                  "
-                                >
-                                  {revealedKeys.has(field.key) ? <EyeOff size={14} /> : <Eye size={14} />}
-                                </button>
-                              ) : undefined
-                            }
-                          />
-                          {field.description && (
-                            <span className="
-                              mt-2 block text-xs text-zinc-500
-
-                              dark:text-zinc-400
-                            ">
-                              {field.description}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                    <SettingsFieldList
+                      fields={BILIBILI_FIELDS}
+                      values={values}
+                      revealedKeys={revealedKeys}
+                      onValueChange={setValue}
+                      onToggleReveal={toggleReveal}
+                      showLeadingIcon
+                      controlSize="large"
+                    />
                   </div>
 
-                  {message && (
-                    <Alert
-                      type={message.type === 'success' ? 'success' : 'error'}
-                      message={message.text}
-                      showIcon
-                    />
-                  )}
-
-                  {hasRequiredMissing && (
-                    <Alert
-                      type="warning"
-                      message={`Missing required: ${requiredMissing.map((f) => f.label).join(', ')}`}
-                      showIcon
-                    />
-                  )}
+                  <BilibiliAuthPanel onCookieSaved={refreshSettingsValues} />
                 </>
               ) : (
                 <>
@@ -506,79 +487,15 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                         </p>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-6">
-                      {SPEECH_FIELDS.map((field) => (
-                        <div key={field.key}>
-                          <label className="
-                            mb-2 flex items-center gap-2 text-sm font-medium text-zinc-600
-
-                            dark:text-zinc-300
-                          ">
-                            <KeyRound size={14} />
-                            {field.label}
-                          </label>
-                          {field.multiline ? (
-                            <Input.TextArea
-                              rows={field.rows ?? DEFAULT_TEXTAREA_ROWS}
-                              value={getStringValue(field.key)}
-                              onChange={(e) =>
-                                setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                              }
-                              placeholder={field.placeholder}
-                              autoComplete="off"
-                            />
-                          ) : field.options ? (
-                            <Select
-                              size="large"
-                              className="w-full"
-                              value={getStringValue(field.key) || undefined}
-                              onChange={(value) =>
-                                setValues((prev) => ({ ...prev, [field.key]: value }))
-                              }
-                              options={field.options}
-                              placeholder={field.placeholder}
-                            />
-                          ) : (
-                            <Input
-                              size="large"
-                              value={getStringValue(field.key)}
-                              onChange={(e) =>
-                                setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                              }
-                              placeholder={field.placeholder}
-                              type={field.secret && !revealedKeys.has(field.key) ? 'password' : 'text'}
-                              autoComplete="off"
-                              suffix={
-                                field.secret ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleReveal(field.key)}
-                                    className="
-                                      cursor-pointer border-none bg-transparent p-0 text-zinc-400
-
-                                      hover:text-zinc-600
-
-                                      dark:hover:text-zinc-300
-                                    "
-                                  >
-                                    {revealedKeys.has(field.key) ? <EyeOff size={14} /> : <Eye size={14} />}
-                                  </button>
-                                ) : undefined
-                              }
-                            />
-                          )}
-                          {field.description && (
-                            <span className="
-                              mt-2 block text-xs text-zinc-500
-
-                              dark:text-zinc-400
-                            ">
-                              {field.description}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                    <SettingsFieldList
+                      fields={SPEECH_FIELDS}
+                      values={values}
+                      revealedKeys={revealedKeys}
+                      onValueChange={setValue}
+                      onToggleReveal={toggleReveal}
+                      showLeadingIcon
+                      controlSize="large"
+                    />
                   </div>
 
                   <SpeechLab />

@@ -1,31 +1,29 @@
-import { useState } from 'react';
-
 import { Input } from 'antd';
 import { Brain, Send } from 'lucide-react';
+import { useSetState } from 'react-use';
+
+import { useChatUiStore } from './chatUiStore';
 
 interface ChatInputProps {
-  isTaskRunning: boolean;
   handleSendMessage: (text: string) => boolean;
   inputId: string;
-  thinkingEnabled: boolean;
-  thinkingSupported: boolean;
   setThinkingEnabled: (enabled: boolean) => void;
 }
 
 export const ChatInput = ({
-  isTaskRunning,
   handleSendMessage,
   inputId,
-  thinkingEnabled,
-  thinkingSupported,
   setThinkingEnabled,
 }: ChatInputProps) => {
-  const [inputText, setInputText] = useState('');
+  const isTaskRunning = useChatUiStore((state) => state.isTaskRunning);
+  const thinkingEnabled = useChatUiStore((state) => state.thinkingEnabled);
+  const thinkingSupported = useChatUiStore((state) => state.thinkingSupported);
+  const [{ inputText }, setState] = useSetState({ inputText: '' });
 
   const sendMessage = () => {
     const didSend = handleSendMessage(inputText);
     if (didSend) {
-      setInputText('');
+      setState({ inputText: '' });
     }
   };
 
@@ -59,7 +57,7 @@ export const ChatInput = ({
           autoSize={{ minRows: 3, maxRows: 6 }}
           variant="borderless"
           value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
+          onChange={(e) => setState({ inputText: e.target.value })}
           onKeyDown={handleKeyDown}
           disabled={isTaskRunning}
           className="

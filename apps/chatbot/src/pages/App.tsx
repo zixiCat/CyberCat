@@ -1,9 +1,11 @@
 import '../styles.css';
 
 import { ConfigProvider, theme as antdTheme } from 'antd';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect } from 'react';
+import { useSetState } from 'react-use';
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
+import { loadBackendJson, waitForBackend, waitForQWebChannel } from './backendShared';
 import { ChatView } from './chatView';
 import { SettingsView } from './settingsView';
 
@@ -35,23 +37,33 @@ const ConfigRedirect = () => {
   useEffect(() => {
     let cancelled = false;
 
-    const check = () => {
-      if (!window.backend) {
-        // Backend not ready yet — retry
-        setTimeout(check, 150);
+    const check = async () => {
+      const backend = await waitForBackend({
+        retryDelayMs: 150,
+        isCancelled: () => cancelled,
+      });
+
+      if (!backend?.get_config_status || cancelled) {
         return;
       }
-      window.backend.get_config_status().then((json: string) => {
-        if (cancelled) return;
-        try {
-          const status = JSON.parse(json);
+
+      try {
+        const status = await loadBackendJson<{ configured?: boolean }>(
+          () => backend.get_config_status?.(),
+          'Config status',
+        );
+
+        if (!cancelled) {
           navigate(status.configured ? '/chat' : '/settings', { replace: true });
-        } catch {
+        }
+      } catch {
+        if (!cancelled) {
           navigate('/chat', { replace: true });
         }
-      });
+      }
     };
-    check();
+
+    void check();
 
     return () => {
       cancelled = true;
@@ -64,27 +76,35 @@ const ConfigRedirect = () => {
 // Initialise QWebChannel at app level so window.backend is available on all routes
 function useInitQWebChannel() {
   useEffect(() => {
-    const init = () => {
-      if (window.qt && window.qt.webChannelTransport && (window as any).QWebChannel) {
-        if ((window as any).webChannelInitializing || window.backend) return;
-        (window as any).webChannelInitializing = true;
-        try {
-          (window as any).webChannel = new (window as any).QWebChannel(
-            window.qt.webChannelTransport,
-            (channel: { objects: { backend: any } }) => {
-              window.backend = channel.objects.backend;
-              (window as any).webChannelInitializing = false;
-            },
-          );
-        } catch (e) {
-          (window as any).webChannelInitializing = false;
-          console.error('Error initializing QWebChannel:', e);
-        }
-      } else {
-        setTimeout(init, 100);
+    let cancelled = false;
+
+    const init = async () => {
+      const channelReady = await waitForQWebChannel({ isCancelled: () => cancelled });
+      if (!channelReady || window.webChannelInitializing || window.backend) {
+        return;
+      }
+
+      window.webChannelInitializing = true;
+
+      try {
+        window.webChannel = new window.QWebChannel(
+          window.qt.webChannelTransport,
+          (channel: { objects: { backend: NonNullable<Window['backend']> } }) => {
+            window.backend = channel.objects.backend;
+            window.webChannelInitializing = false;
+          },
+        );
+      } catch (error) {
+        window.webChannelInitializing = false;
+        console.error('Error initializing QWebChannel:', error);
       }
     };
-    init();
+
+    void init();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 }
 
@@ -96,26 +116,25 @@ export const App = () => {
   useInitQWebChannel();
   const location = useLocation();
   const backgroundLocation = location.state?.backgroundLocation;
-
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    return (localStorage.getItem('theme') as ThemeMode) || 'system';
+  const [themeState, setThemeState] = useSetState({
+    theme: ((localStorage.getItem('theme') as ThemeMode) || 'system') as ThemeMode,
+    systemTheme: window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? ('dark' as const)
+      : ('light' as const),
   });
-
-  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(
-    window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
-  );
+  const { theme, systemTheme } = themeState;
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent) => {
-      setSystemTheme(e.matches ? 'dark' : 'light');
+      setThemeState({ systemTheme: e.matches ? 'dark' : 'light' });
     };
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
+  }, [setThemeState]);
 
   const setTheme = (newTheme: ThemeMode) => {
-    setThemeState(newTheme);
+    setThemeState({ theme: newTheme });
     localStorage.setItem('theme', newTheme);
   };
 

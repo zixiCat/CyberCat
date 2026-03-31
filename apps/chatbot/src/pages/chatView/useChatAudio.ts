@@ -1,31 +1,27 @@
-import { useCallback, useRef, useState, type MutableRefObject } from 'react';
+import { useCallback, useRef } from 'react';
 import { useMount, useUnmount } from 'react-use';
 
+import { useChatSessionStore } from './chatSessionStore';
 import {
   AUDIO_CHANNEL_INDEX,
   AUDIO_CHANNELS,
   AUDIO_SAMPLE_RATE,
   EMPTY_LENGTH,
   PCM_MAX,
+  SEGMENT_TASK_DIVISOR,
 } from './chatShared';
-import { ChunkSegment, Session } from './types';
+import { useChatUiStore } from './chatUiStore';
+import { ChunkSegment } from './types';
 
-interface UseChatAudioOptions {
-  autoPlayRef: MutableRefObject<boolean>;
-  sessionsRef: MutableRefObject<Session[]>;
-  updateSessions: (updater: (prev: Session[]) => Session[]) => void;
-}
-
-export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseChatAudioOptions) => {
+export const useChatAudio = () => {
   const audioContext = useRef<AudioContext | null>(null);
   const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const [playingSegmentId, setPlayingSegmentId] = useState<number | null>(null);
   const autoPlayedSegmentsRef = useRef<Set<number>>(new Set());
   const audioQueueRef = useRef<number[]>([]);
   const isAutoPlayingRef = useRef<boolean>(false);
-  const currentReceivingSegmentIdRef = useRef<number | null>(null);
   const segmentAudioChunksRef = useRef<Map<number, Float32Array[]>>(new Map());
   const pendingAudioBase64ChunksRef = useRef<Map<number, string[]>>(new Map());
+
   const playAudio = useCallback(async (segment: ChunkSegment) => {
     const ctx = audioContext.current;
     if (!ctx) {
@@ -37,7 +33,7 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
         currentSourceRef.current.disconnect();
       }
       const streamedChunks = segmentAudioChunksRef.current.get(segment.id) ?? segment.audioChunks;
-      setPlayingSegmentId(segment.id);
+      useChatUiStore.getState().setUiState({ playingSegmentId: segment.id });
       if (streamedChunks && streamedChunks.length > 0) {
         const totalLength = streamedChunks.reduce((acc, chunk) => acc + chunk.length, EMPTY_LENGTH);
         const combinedArray = new Float32Array(totalLength);
@@ -53,19 +49,19 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
         source.connect(ctx.destination);
         source.onended = () => {
           currentSourceRef.current = null;
-          setPlayingSegmentId(null);
+          useChatUiStore.getState().setUiState({ playingSegmentId: null });
           resolve();
         };
         source.start();
         currentSourceRef.current = source;
         return;
       }
-      if (segment.audioFile && window.backend) {
+      if (segment.audioFile && window.backend?.get_audio_file) {
         window.backend
           .get_audio_file(segment.audioFile)
           .then(async (base64Wav: string) => {
             if (!base64Wav || !audioContext.current) {
-              setPlayingSegmentId(null);
+              useChatUiStore.getState().setUiState({ playingSegmentId: null });
               resolve();
               return;
             }
@@ -80,7 +76,7 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
             source.connect(ctx.destination);
             source.onended = () => {
               currentSourceRef.current = null;
-              setPlayingSegmentId(null);
+              useChatUiStore.getState().setUiState({ playingSegmentId: null });
               resolve();
             };
             source.start();
@@ -88,15 +84,16 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
           })
           .catch((error: unknown) => {
             console.error('Failed to play audio file:', error);
-            setPlayingSegmentId(null);
+            useChatUiStore.getState().setUiState({ playingSegmentId: null });
             resolve();
           });
         return;
       }
-      setPlayingSegmentId(null);
+      useChatUiStore.getState().setUiState({ playingSegmentId: null });
       resolve();
     });
   }, []);
+
   const processAudioQueue = useCallback(async () => {
     if (isAutoPlayingRef.current || audioQueueRef.current.length === 0) {
       return;
@@ -110,7 +107,7 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
         continue;
       }
 
-      const allSegments = sessionsRef.current.flatMap((session) =>
+      const allSegments = useChatSessionStore.getState().sessions.flatMap((session) =>
         session.tasks.flatMap((task) => task.segments),
       );
       const targetSegment = allSegments.find((segment) => segment.id === segmentId);
@@ -119,11 +116,12 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
       }
     }
     isAutoPlayingRef.current = false;
-  }, [playAudio, sessionsRef]);
+  }, [playAudio]);
+
   const finalizeSegmentAudio = useCallback(
     (segmentId: number) => {
       const chunks = pendingAudioBase64ChunksRef.current.get(segmentId);
-      if (!chunks || chunks.length === 0 || !window.backend) {
+      if (!chunks || chunks.length === 0 || !window.backend?.save_audio_chunks) {
         return;
       }
 
@@ -136,8 +134,8 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
             return;
           }
 
-          const taskId = Math.floor(segmentId / 10000);
-          updateSessions((prev) =>
+          const taskId = Math.floor(segmentId / SEGMENT_TASK_DIVISOR);
+          useChatSessionStore.getState().updateSessions((prev) =>
             prev.map((session) => {
               const taskIndex = session.tasks.findIndex((task) => task.id === taskId);
               if (taskIndex === -1) {
@@ -172,14 +170,15 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
           console.error('Failed to finalize audio segment:', error);
         });
     },
-    [updateSessions],
+    [],
   );
+
   const processAudioChunk = useCallback(
     (segmentId: number, base64Audio: string) => {
       if (!audioContext.current) {
         return;
       }
-      const taskId = Math.floor(segmentId / 10000);
+      const taskId = Math.floor(segmentId / SEGMENT_TASK_DIVISOR);
       try {
         const binaryString = window.atob(base64Audio);
         const bytes = new Uint8Array(binaryString.length);
@@ -198,8 +197,8 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
         const pendingChunks = pendingAudioBase64ChunksRef.current.get(segmentId) ?? [];
         pendingChunks.push(base64Audio);
         pendingAudioBase64ChunksRef.current.set(segmentId, pendingChunks);
-        currentReceivingSegmentIdRef.current = segmentId;
-        updateSessions((prev) =>
+        useChatUiStore.getState().setUiState({ currentReceivingSegmentId: segmentId });
+        useChatSessionStore.getState().updateSessions((prev) =>
           prev.map((session) => {
             const taskIndex = session.tasks.findIndex((task) => task.id === taskId);
             if (taskIndex === -1) {
@@ -235,27 +234,30 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
         console.error('Error processing audio chunk:', error);
       }
     },
-    [updateSessions],
+    [],
   );
+
   const handleSegmentFinished = useCallback(
     (segmentId: number) => {
-      currentReceivingSegmentIdRef.current = null;
+      useChatUiStore.getState().setUiState({ currentReceivingSegmentId: null });
       finalizeSegmentAudio(segmentId);
 
-      if (autoPlayRef.current && !autoPlayedSegmentsRef.current.has(segmentId)) {
+      if (useChatUiStore.getState().autoPlay && !autoPlayedSegmentsRef.current.has(segmentId)) {
         autoPlayedSegmentsRef.current.add(segmentId);
         audioQueueRef.current.push(segmentId);
         void processAudioQueue();
       }
     },
-    [autoPlayRef, finalizeSegmentAudio, processAudioQueue],
+    [finalizeSegmentAudio, processAudioQueue],
   );
+
   const finalizePendingSegments = useCallback(() => {
-    currentReceivingSegmentIdRef.current = null;
+    useChatUiStore.getState().setUiState({ currentReceivingSegmentId: null });
     pendingAudioBase64ChunksRef.current.forEach((_, segmentId) => {
       finalizeSegmentAudio(segmentId);
     });
   }, [finalizeSegmentAudio]);
+
   const stopAudioPlayback = useCallback(() => {
     if (currentSourceRef.current) {
       currentSourceRef.current.stop();
@@ -263,10 +265,11 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
       currentSourceRef.current = null;
     }
 
-    setPlayingSegmentId(null);
+    useChatUiStore.getState().setUiState({ playingSegmentId: null });
     audioQueueRef.current = [];
     isAutoPlayingRef.current = false;
   }, []);
+
   useMount(() => {
     audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
   });
@@ -277,8 +280,6 @@ export const useChatAudio = ({ autoPlayRef, sessionsRef, updateSessions }: UseCh
     }
   });
   return {
-    playingSegmentId,
-    currentReceivingSegmentIdRef,
     playAudio,
     processAudioChunk,
     handleSegmentFinished,

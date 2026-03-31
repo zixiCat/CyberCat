@@ -14,6 +14,8 @@ from typing import Any
 # All recognised setting keys with their env-var names and defaults.
 _FIELDS: dict[str, tuple[str, Any]] = {
     # key            -> (ENV_VAR_NAME, default_value)
+    "bilibili_cookie": ("BILIBILI_COOKIE", ""),
+    "bilibili_url": ("BILIBILI_URL", ""),
     "qwen_api_key": ("QWEN_API_KEY", ""),
     "qwen_asr_base_url": (
         "QWEN_ASR_BASE_URL",

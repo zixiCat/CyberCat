@@ -1,29 +1,36 @@
+"""Background voice recording triggered by global hotkeys.
+
+Hotkeys:
+- ``z+x`` → Record, transcribe, show toast for confirmation
+- ``x+c`` → Record, transcribe, start task immediately
+"""
+
 import time
 import threading
+
 from pynput import keyboard
 from win11toast import toast
-from utils.record_voice import recorder
-from service.qwen_service import qwen_service as transcription_service
 
-# Hotkeys: sets of pynput KeyCode/Key that must all be pressed simultaneously
-# z+x  -> notify flow,  x+c -> direct flow
+from utils.record_voice import recorder
+from service.qwen_service import qwen_service
+
 _HOTKEY_NOTIFY = {keyboard.KeyCode.from_char("z"), keyboard.KeyCode.from_char("x")}
 _HOTKEY_DIRECT = {keyboard.KeyCode.from_char("x"), keyboard.KeyCode.from_char("c")}
 
-HOTKEY_NOTIFY = "z+x"
-HOTKEY_DIRECT = "x+c"
+HOTKEY_NOTIFY_LABEL = "z+x"
+HOTKEY_DIRECT_LABEL = "x+c"
+_STOP_BUTTON_TEXT = "Did you say that? I'll do it right now. Click to stop."
 
 
 class VoiceListener:
-    """Handles background voice recording and transcription."""
+    """Captures audio via hotkeys, transcribes, and dispatches tasks."""
 
-    def __init__(self, backend_service):
-        self.backend = backend_service
+    def __init__(self, backend_service) -> None:
+        self._backend = backend_service
         self._pressed: set = set()
         self._lock = threading.Lock()
 
-    def start(self):
-        """Runs the keyboard listener in a background thread."""
+    def start(self) -> None:
         listener = keyboard.Listener(
             on_press=self._on_press,
             on_release=self._on_release,
@@ -32,77 +39,75 @@ class VoiceListener:
         listener.start()
         threading.Thread(target=self._recording_loop, daemon=True).start()
 
-    def _on_press(self, key):
+    # ── Key tracking ──────────────────────────────────────────────
+
+    def _on_press(self, key) -> None:
         with self._lock:
             self._pressed.add(key)
 
-    def _on_release(self, key):
+    def _on_release(self, key) -> None:
         with self._lock:
             self._pressed.discard(key)
 
-    def _is_hotkey(self, hotkey_set: set) -> bool:
+    def _is_hotkey_active(self, hotkey_set: set) -> bool:
         with self._lock:
             return hotkey_set.issubset(self._pressed)
 
-    def _recording_loop(self):
+    # ── Main loop ─────────────────────────────────────────────────
+
+    def _recording_loop(self) -> None:
         print("--- CyberCat Voice Service ---")
-        print(f"Hold '{HOTKEY_NOTIFY}' for ASR with notification")
-        print(f"Hold '{HOTKEY_DIRECT}' for immediate AI task")
-        STOP_TEXT = "Did you say that? I'll do it right now. Click to stop."
+        print(f"Hold '{HOTKEY_NOTIFY_LABEL}' for ASR with confirmation")
+        print(f"Hold '{HOTKEY_DIRECT_LABEL}' for immediate AI task")
 
         while True:
-            active_key = None
-            if self._is_hotkey(_HOTKEY_NOTIFY):
-                active_key = HOTKEY_NOTIFY
-            elif self._is_hotkey(_HOTKEY_DIRECT):
-                active_key = HOTKEY_DIRECT
+            hotkey_set = self._detect_active_hotkey()
+            if hotkey_set is None:
+                time.sleep(0.01)
+                continue
 
-            if active_key:
-                hotkey_set = _HOTKEY_NOTIFY if active_key == HOTKEY_NOTIFY else _HOTKEY_DIRECT
-                recorder.start()
-                # Wait while the hotkey is held
-                while self._is_hotkey(hotkey_set):
-                    time.sleep(0.01)
+            is_direct = hotkey_set is _HOTKEY_DIRECT
+            audio_file = self._record_while_held(hotkey_set)
+            if not audio_file:
+                continue
 
-                # Key released, stop recording and get filename
-                audio_file = recorder.stop()
+            self._transcribe_and_dispatch(audio_file, direct=is_direct)
 
-                if audio_file:
-                    start_time = time.time()
-                    print("Transcribing using qwen...")
-                    try:
-                        text = transcription_service.transcribe_audio(audio_file)
-                        end_time = time.time()
-                        print(f"Transcription completed in {end_time - start_time:.2f} seconds")
-                        print(f"Transcription: {text}")
+    def _detect_active_hotkey(self) -> set | None:
+        if self._is_hotkey_active(_HOTKEY_NOTIFY):
+            return _HOTKEY_NOTIFY
+        if self._is_hotkey_active(_HOTKEY_DIRECT):
+            return _HOTKEY_DIRECT
+        return None
 
-                        # If x+c was used, or if text starts with "cybercat", send immediately
-                        if active_key == HOTKEY_DIRECT or text.lower().strip().startswith(
-                            "cybercat"
-                        ):
-                            if active_key == HOTKEY_DIRECT:
-                                print("Immediate AI task requested via x+c.")
-                            else:
-                                print("Quick response detected via 'cybercat' keyword.")
-                            self.backend.start_task(text)
-                        else:
-                            # Show confirmation toast
-                            result = toast(
-                                text,
-                                button=STOP_TEXT,
-                            )
-
-                            # Logic from z.py: check if user clicked stop
-                            if (
-                                isinstance(result, dict)
-                                and result.get("arguments", "")[5:] == STOP_TEXT
-                            ):
-                                print("User clicked the stop button! Cancelled.")
-                            else:
-                                print("User confirmed (or ignored). Starting task...")
-                                self.backend.start_task(text)
-
-                    except Exception as e:
-                        print(f"Transcription error: {e}")
-
+    def _record_while_held(self, hotkey_set: set) -> str | None:
+        recorder.start()
+        while self._is_hotkey_active(hotkey_set):
             time.sleep(0.01)
+        return recorder.stop()
+
+    def _transcribe_and_dispatch(self, audio_file: str, *, direct: bool) -> None:
+        t0 = time.time()
+        print("Transcribing...")
+        try:
+            text = qwen_service.transcribe_audio(audio_file)
+            print(f"Transcription ({time.time() - t0:.2f}s): {text}")
+        except Exception as exc:
+            print(f"Transcription error: {exc}")
+            return
+
+        if not text or not text.strip():
+            return
+
+        if direct or text.lower().strip().startswith("cybercat"):
+            label = "x+c direct" if direct else "'cybercat' keyword"
+            print(f"Immediate task via {label}.")
+            self._backend.start_task(text)
+            return
+
+        result = toast(text, button=_STOP_BUTTON_TEXT)
+        if isinstance(result, dict) and result.get("arguments", "")[5:] == _STOP_BUTTON_TEXT:
+            print("User cancelled via toast.")
+        else:
+            print("User confirmed. Starting task...")
+            self._backend.start_task(text)

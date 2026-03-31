@@ -1,9 +1,11 @@
 import { Button, Input, message, Popover, Select } from 'antd';
 import { Pencil, Plus, Settings, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useSetState } from 'react-use';
 
 import { useTheme } from '../App';
+import { loadBackendJson, waitForBackend } from '../backendShared';
 import { SettingsProfilesPayload, SettingsProfileSummary } from '../chatView/types';
 
 interface ActionResult {
@@ -33,12 +35,20 @@ const EMPTY_PROFILE_COUNT = 0;
 const SINGLE_PROFILE_COUNT = 1;
 
 const loadProfilesPayload = async (): Promise<SettingsProfilesPayload> => {
-  if (!window.backend?.get_settings_profiles) {
-    throw new Error('Settings backend is not ready.');
-  }
-
-  return JSON.parse(await window.backend.get_settings_profiles()) as SettingsProfilesPayload;
+  return loadBackendJson<SettingsProfilesPayload>(
+    () => window.backend?.get_settings_profiles?.(),
+    'Settings profiles',
+  );
 };
+
+interface SettingsProfileButtonState {
+  open: boolean;
+  profiles: SettingsProfileSummary[];
+  activeProfileId: string;
+  profileNameDraft: string;
+  busy: boolean;
+  deleteHoldProgress: number;
+}
 
 export const SettingsProfileButton = ({
   onProfileApplied,
@@ -48,12 +58,15 @@ export const SettingsProfileButton = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { effectiveTheme } = useTheme();
-  const [open, setOpen] = useState(false);
-  const [profiles, setProfiles] = useState<SettingsProfileSummary[]>([]);
-  const [activeProfileId, setActiveProfileId] = useState('');
-  const [profileNameDraft, setProfileNameDraft] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [deleteHoldProgress, setDeleteHoldProgress] = useState(HOLD_PROGRESS_EMPTY);
+  const [state, setState] = useSetState<SettingsProfileButtonState>({
+    open: false,
+    profiles: [],
+    activeProfileId: '',
+    profileNameDraft: '',
+    busy: false,
+    deleteHoldProgress: HOLD_PROGRESS_EMPTY,
+  });
+  const { open, profiles, activeProfileId, profileNameDraft, busy, deleteHoldProgress } = state;
   const deleteHoldTimerRef = useRef<number | null>(null);
 
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId) ?? null;
@@ -81,27 +94,29 @@ export const SettingsProfileButton = ({
   const deleteHoldFillColor =
     effectiveTheme === 'dark' ? DELETE_HOLD_FILL_DARK : DELETE_HOLD_FILL_LIGHT;
 
-  const syncProfiles = async () => {
+  const syncProfiles = useCallback(async () => {
     const payload = await loadProfilesPayload();
     const nextProfiles = payload.profiles;
     const nextActiveProfileId = payload.activeProfileId;
     const nextActiveProfile = nextProfiles.find((profile) => profile.id === nextActiveProfileId) ?? null;
 
-    setProfiles(nextProfiles);
-    setActiveProfileId(nextActiveProfileId);
-    setProfileNameDraft(nextActiveProfile?.name ?? '');
-  };
+    setState({
+      profiles: nextProfiles,
+      activeProfileId: nextActiveProfileId,
+      profileNameDraft: nextActiveProfile?.name ?? '',
+    });
+  }, [setState]);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      if (cancelled) {
-        return;
-      }
+      const backend = await waitForBackend({
+        retryDelayMs: BACKEND_RETRY_DELAY_MS,
+        isCancelled: () => cancelled,
+      });
 
-      if (!window.backend?.get_settings_profiles) {
-        window.setTimeout(load, BACKEND_RETRY_DELAY_MS);
+      if (!backend?.get_settings_profiles || cancelled) {
         return;
       }
 
@@ -117,13 +132,13 @@ export const SettingsProfileButton = ({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [syncProfiles]);
 
   useEffect(() => {
     if (location.pathname === '/settings') {
-      setOpen(false);
+      setState({ open: false });
     }
-  }, [location.pathname]);
+  }, [location.pathname, setState]);
 
   useEffect(() => {
     return () => {
@@ -138,11 +153,11 @@ export const SettingsProfileButton = ({
     successText?: string,
     options?: { applyProfile?: boolean },
   ) => {
-    setBusy(true);
+    setState({ busy: true });
     message.destroy(PROFILE_MESSAGE_KEY);
 
     try {
-      const result = JSON.parse(await action()) as ActionResult;
+      const result = await loadBackendJson<ActionResult>(action, 'Settings profile action');
       if (!result.ok) {
         message.error({
           content: result.error || 'Profile action failed.',
@@ -162,7 +177,7 @@ export const SettingsProfileButton = ({
       const text = error instanceof Error ? error.message : 'Profile action failed.';
       message.error({ content: text, key: PROFILE_MESSAGE_KEY });
     } finally {
-      setBusy(false);
+      setState({ busy: false });
     }
   };
 
@@ -212,7 +227,7 @@ export const SettingsProfileButton = ({
       deleteHoldTimerRef.current = null;
     }
 
-    setDeleteHoldProgress(HOLD_PROGRESS_EMPTY);
+    setState({ deleteHoldProgress: HOLD_PROGRESS_EMPTY });
   };
 
   const startDeleteHold = () => {
@@ -221,13 +236,13 @@ export const SettingsProfileButton = ({
     }
 
     const holdStartedAt = Date.now();
-    setDeleteHoldProgress(HOLD_PROGRESS_EMPTY);
+    setState({ deleteHoldProgress: HOLD_PROGRESS_EMPTY });
 
     deleteHoldTimerRef.current = window.setInterval(() => {
       const elapsed = Date.now() - holdStartedAt;
       const nextProgress = Math.min(elapsed / DELETE_HOLD_DURATION_MS, HOLD_PROGRESS_COMPLETE);
 
-      setDeleteHoldProgress(nextProgress);
+      setState({ deleteHoldProgress: nextProgress });
 
       if (nextProgress < HOLD_PROGRESS_COMPLETE) {
         return;
@@ -239,7 +254,7 @@ export const SettingsProfileButton = ({
       }
 
       void handleProfileDelete().finally(() => {
-        setDeleteHoldProgress(HOLD_PROGRESS_EMPTY);
+        setState({ deleteHoldProgress: HOLD_PROGRESS_EMPTY });
       });
     }, DELETE_HOLD_TICK_MS);
   };
@@ -249,7 +264,7 @@ export const SettingsProfileButton = ({
       return;
     }
 
-    setOpen(false);
+    setState({ open: false });
     navigate('/settings', {
       state: { backgroundLocation: location },
     });
@@ -260,7 +275,7 @@ export const SettingsProfileButton = ({
         open={open}
         trigger="click"
         placement={placement}
-        onOpenChange={(nextOpen) => setOpen(nextOpen)}
+      onOpenChange={(nextOpen) => setState({ open: nextOpen })}
         content={
           <div className="flex w-[min(30rem,calc(100vw-2rem))] max-w-full flex-col gap-4">
           <div className="flex items-start justify-between gap-3">
@@ -348,7 +363,7 @@ export const SettingsProfileButton = ({
               <div className="flex items-center gap-2">
                 <Input
                   value={profileNameDraft}
-                  onChange={(event) => setProfileNameDraft(event.target.value)}
+                  onChange={(event) => setState({ profileNameDraft: event.target.value })}
                   onPressEnter={() => {
                     if (canRenameProfile) {
                       void handleProfileRename();

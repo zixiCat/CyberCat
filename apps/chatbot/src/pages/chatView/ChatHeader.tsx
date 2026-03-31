@@ -17,33 +17,13 @@ import {
   X,
 } from 'lucide-react';
 
-import { ThemeMode } from '../App';
+import { useTheme } from '../App';
 import { SettingsProfileButton } from '../components/SettingsProfileButton';
-import { Session, VoiceOption } from './types';
+import { useChatSessionStore } from './chatSessionStore';
+import { useChatUiStore } from './chatUiStore';
 
 export interface ChatHeaderProps {
-  theme: ThemeMode;
-  setTheme: (theme: ThemeMode) => void;
-  availablePrompts: string[];
-  selectedPromptFile: string;
-  setSelectedPromptFile: (file: string) => void;
-  voiceOptions: VoiceOption[];
-  selectedVoice: string;
-  setSelectedVoice: (voice: string) => void;
-  randomVoicePool: string[];
-  setRandomVoicePool: (voices: string[]) => void;
-  selectedSessionId: string | null;
-  updateSessions: (updater: (prev: Session[]) => Session[]) => void;
-  setSelectedPromptContent: (content: string) => void;
-  autoPlay: boolean;
-  setAutoPlay: (autoPlay: boolean) => void;
-  isTaskRunning: boolean;
   stopStreaming: () => void;
-  clearCurrentChat: () => void;
-  createNewSession: () => void;
-  isSidebarCollapsed: boolean;
-  setIsSidebarCollapsed: (collapsed: boolean) => void;
-  isWindowMaximized: boolean;
   startWindowDrag: () => void;
   minimizeWindow: () => void;
   toggleMaximizeWindow: () => void;
@@ -52,34 +32,30 @@ export interface ChatHeaderProps {
 }
 
 export const ChatHeader = ({
-  theme,
-  setTheme,
-  availablePrompts,
-  selectedPromptFile,
-  setSelectedPromptFile,
-  voiceOptions,
-  selectedVoice,
-  setSelectedVoice,
-  randomVoicePool,
-  setRandomVoicePool,
-  selectedSessionId,
-  updateSessions,
-  setSelectedPromptContent,
-  autoPlay,
-  setAutoPlay,
-  isTaskRunning,
   stopStreaming,
-  clearCurrentChat,
-  createNewSession,
-  isSidebarCollapsed,
-  setIsSidebarCollapsed,
-  isWindowMaximized,
   startWindowDrag,
   minimizeWindow,
   toggleMaximizeWindow,
   closeWindow,
   reloadProfileSettings,
 }: ChatHeaderProps) => {
+  const { theme, setTheme } = useTheme();
+  const availablePrompts = useChatUiStore((state) => state.availablePrompts);
+  const selectedPromptFile = useChatUiStore((state) => state.selectedPromptFile);
+  const voiceOptions = useChatUiStore((state) => state.voiceOptions);
+  const selectedVoice = useChatUiStore((state) => state.selectedVoice);
+  const randomVoicePool = useChatUiStore((state) => state.randomVoicePool);
+  const autoPlay = useChatUiStore((state) => state.autoPlay);
+  const isTaskRunning = useChatUiStore((state) => state.isTaskRunning);
+  const isSidebarCollapsed = useChatUiStore((state) => state.isSidebarCollapsed);
+  const isWindowMaximized = useChatUiStore((state) => state.isWindowMaximized);
+  const setAutoPlay = useChatUiStore((state) => state.setAutoPlay);
+  const setUiState = useChatUiStore((state) => state.setUiState);
+  const toggleSidebar = useChatUiStore((state) => state.toggleSidebar);
+  const selectedSessionId = useChatSessionStore((state) => state.selectedSessionId);
+  const updateSessions = useChatSessionStore((state) => state.updateSessions);
+  const clearCurrentChat = useChatSessionStore((state) => state.clearCurrentChat);
+  const createNewSession = useChatSessionStore((state) => state.createNewSession);
   const cyberCatLogoSrc = 'CyberCat.png';
   const EMPTY_VOICE_COUNT = 0;
   const PRIMARY_MOUSE_BUTTON = 0;
@@ -88,8 +64,8 @@ export const ChatHeader = ({
   const randomVoiceOptions = voiceOptions.filter((option) => option.value !== 'auto');
 
   const handleRandomVoicePoolChange = (voices: string[]) => {
-    setRandomVoicePool(voices);
-    window.backend?.set_random_voice_pool(JSON.stringify(voices));
+    setUiState({ randomVoicePool: voices });
+    window.backend?.set_random_voice_pool?.(JSON.stringify(voices));
   };
 
   return (
@@ -186,13 +162,17 @@ export const ChatHeader = ({
         )}
       </div>
 
-      <div className="relative mt-2 flex flex-col gap-2 min-[660px]:flex-row min-[660px]:items-center">
+      <div className="
+        relative mt-2 flex flex-col gap-2
+
+        min-[660px]:flex-row min-[660px]:items-center
+      ">
         <div className="flex shrink-0 items-center gap-1">
           <Tooltip title={isSidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}>
             <Button
               type="text"
               size="small"
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              onClick={toggleSidebar}
               icon={<Columns size={14} className="opacity-80" />}
             />
           </Tooltip>
@@ -206,24 +186,32 @@ export const ChatHeader = ({
           </Tooltip>
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-1 min-[660px]:pr-11 min-[660px]:gap-1.5">
+        <div className="
+          flex min-w-0 flex-wrap items-center gap-1
+
+          min-[660px]:gap-1.5 min-[660px]:pr-11
+        ">
         <Select
           size="small"
-          className="w-24 text-[10px] sm:w-28"
+          className="
+            w-24 text-[10px]
+
+            sm:w-28
+          "
           value={selectedPromptFile}
           onChange={(file) => {
-            setSelectedPromptFile(file);
+            setUiState({ selectedPromptFile: file });
             updateSessions((prev) =>
               prev.map((s) => (s.id === selectedSessionId ? { ...s, systemPromptFile: file } : s)),
             );
-            window.backend?.get_prompt_content(file).then((content: string) => {
-              setSelectedPromptContent(content);
-              window.backend?.set_active_system_prompt(content);
+            window.backend?.get_prompt_content?.(file).then((content: string) => {
+              setUiState({ selectedPromptContent: content });
+              window.backend?.set_active_system_prompt?.(content);
             });
           }}
           options={availablePrompts.map((p) => ({
-            label: p.replace(/\.(md|txt)$/, ''),
-            value: p,
+            label: p.name,
+            value: p.file,
           }))}
           suffixIcon={<FileText size={10} className="opacity-40" />}
           variant="borderless"
@@ -231,11 +219,15 @@ export const ChatHeader = ({
 
         <Select
           size="small"
-          className="w-24 text-[10px] sm:w-32"
+          className="
+            w-24 text-[10px]
+
+            sm:w-32
+          "
           value={selectedVoice}
           onChange={(voice) => {
-            setSelectedVoice(voice);
-            window.backend?.set_active_voice(voice);
+            setUiState({ selectedVoice: voice });
+            window.backend?.set_active_voice?.(voice);
           }}
           options={voiceOptions.map((option) => ({
             label: option.model === 'random' ? option.label : `${option.label}`,
@@ -342,7 +334,7 @@ export const ChatHeader = ({
           classNames={{
             label: 'flex items-center',
           }}
-          onChange={(value) => setTheme(value as ThemeMode)}
+          onChange={(value) => setTheme(value as 'light' | 'dark' | 'system')}
           options={[
             { value: 'light', icon: <Sun size={12} /> },
             { value: 'system', icon: <Monitor size={12} /> },
@@ -414,7 +406,10 @@ export const ChatHeader = ({
           />
         </Tooltip>
 
-            <div className="min-[660px]:absolute min-[660px]:top-1/2 min-[660px]:right-0 min-[660px]:-translate-y-1/2">
+            <div className="
+              min-[660px]:absolute min-[660px]:top-1/2 min-[660px]:right-0
+              min-[660px]:-translate-y-1/2
+            ">
               <Tooltip title="Profiles & Settings" placement="bottom">
                 <SettingsProfileButton
                   onProfileApplied={reloadProfileSettings}
