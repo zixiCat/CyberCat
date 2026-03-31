@@ -79,12 +79,12 @@ export const ChatView = () => {
     }
 
     try {
-      const [settings, voice, parsedVoiceOptions] = await Promise.all([
+      const [settings, activeVoice, parsedVoiceOptions] = await Promise.all([
         loadBackendJson<Record<string, string | boolean>>(
           () => backend.get_settings?.(),
           'Profile settings',
         ),
-        backend.get_active_voice(),
+        loadBackendJson<{ voice: string }>(() => backend.get_active_voice?.(), 'Active voice'),
         loadBackendJson<VoiceOption[]>(() => backend.get_voice_options?.(), 'Voice options'),
       ]);
 
@@ -94,7 +94,7 @@ export const ChatView = () => {
 
       setUiState({
         voiceOptions: parsedVoiceOptions,
-        selectedVoice: voice || 'auto',
+        selectedVoice: activeVoice.voice || 'auto',
         randomVoicePool: storedRandomVoicePool,
         thinkingSupported: supported,
         thinkingEnabled: supported && Boolean(settings[THINKING_FIELD_KEY]),

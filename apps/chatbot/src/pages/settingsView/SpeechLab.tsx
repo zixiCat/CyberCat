@@ -199,7 +199,7 @@ export const SpeechLab = () => {
 
       const [voiceOptionsResult, activeVoiceResult, randomVoicePoolResult] = await Promise.allSettled([
         loadBackendJson<VoiceOption[]>(() => backend.get_voice_options?.(), 'Speech lab voice options'),
-        backend.get_active_voice ? backend.get_active_voice() : Promise.resolve(''),
+        loadBackendJson<{ voice: string }>(() => backend.get_active_voice?.(), 'Speech lab active voice'),
         loadBackendJson<string[]>(() => backend.get_random_voice_pool?.(), 'Speech lab random voice pool'),
       ]);
 
@@ -214,8 +214,8 @@ export const SpeechLab = () => {
       }
 
       if (activeVoiceResult.status === 'fulfilled') {
-        if (activeVoiceResult.value) {
-          setState({ selectedVoice: activeVoiceResult.value });
+        if (activeVoiceResult.value.voice) {
+          setState({ selectedVoice: activeVoiceResult.value.voice });
         }
       } else {
         console.error('Failed to load active voice:', activeVoiceResult.reason);
