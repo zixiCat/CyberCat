@@ -11,6 +11,11 @@ from PySide6.QtCore import QObject, Signal, Slot
 from constants.tts import get_voice_options
 from service.backend.asr_handler import start_asr_test_recording, stop_asr_test_recording
 from service.backend.audio_handler import get_audio_file, save_audio_chunks
+from service.backend.bilibili_handler import (
+    get_bilibili_auth_status,
+    poll_bilibili_qr_login,
+    start_bilibili_qr_login,
+)
 from service.backend.prompt_handler import get_available_prompts, get_prompt_content
 from service.backend.session_handler import (
     delete_session,
@@ -110,6 +115,20 @@ class BackendService(QObject):
             return json.dumps({"ok": True})
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc)})
+
+    # ── Bilibili auth ────────────────────────────────────────────
+
+    @Slot(result=str)
+    def get_bilibili_auth_status(self) -> str:
+        return get_bilibili_auth_status()
+
+    @Slot(result=str)
+    def start_bilibili_qr_login(self) -> str:
+        return start_bilibili_qr_login()
+
+    @Slot(str, result=str)
+    def poll_bilibili_qr_login(self, session_id: str) -> str:
+        return poll_bilibili_qr_login(session_id)
 
     # ── Settings profiles ─────────────────────────────────────────
 

@@ -55,6 +55,32 @@ export interface SettingsProfilesPayload {
   profiles: SettingsProfileSummary[];
 }
 
+export type BilibiliAuthState = 'not_configured' | 'configured' | 'authenticated' | 'logged_out';
+
+export interface BilibiliAuthStatus {
+  configured: boolean;
+  state: BilibiliAuthState;
+  remoteChecked: boolean;
+  hasSessData: boolean;
+  userId: string;
+  username: string;
+  expiresAt: string | null;
+  checkedAt?: string;
+  remoteError?: string;
+}
+
+export type BilibiliQrLoginState = 'waiting_scan' | 'waiting_confirm' | 'expired' | 'success';
+
+export interface BilibiliQrLoginResult {
+  ok: boolean;
+  state?: BilibiliQrLoginState;
+  sessionId?: string;
+  qrUrl?: string;
+  expiresInSeconds?: number;
+  status?: BilibiliAuthStatus;
+  error?: string;
+}
+
 export interface SignalHandler<TArgs extends unknown[] = unknown[]> {
   connect: (callback: (...args: TArgs) => void) => void;
 }
@@ -85,6 +111,9 @@ export interface BackendBridge {
   save_audio_chunks?: (chunksJson: string) => Promise<string>;
   get_settings?: () => Promise<string>;
   save_settings?: (settingsJson: string) => Promise<string>;
+  get_bilibili_auth_status?: () => Promise<string>;
+  start_bilibili_qr_login?: () => Promise<string>;
+  poll_bilibili_qr_login?: (sessionId: string) => Promise<string>;
   get_settings_profiles?: () => Promise<string>;
   create_settings_profile?: (profileName: string) => Promise<string>;
   rename_settings_profile?: (profileId: string, profileName: string) => Promise<string>;

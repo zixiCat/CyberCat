@@ -38,6 +38,27 @@ export const SETTINGS_FIELDS: SettingsField[] = [
   },
 ];
 
+export const BILIBILI_FIELDS: SettingsField[] = [
+  {
+    key: 'bilibili_url',
+    label: 'Bilibili URL',
+    placeholder: 'https://space.bilibili.com/.../favlist?fid=...',
+    required: false,
+    secret: false,
+    description:
+      'The Bilibili space or favourites URL that BBDown will download from.',
+  },
+  {
+    key: 'bilibili_cookie',
+    label: 'Bilibili Cookie (BBDown.data)',
+    placeholder: 'SESSDATA=...; bili_jct=...; DedeUserID=...',
+    required: false,
+    secret: true,
+    description:
+      'Paste the full contents of BBDown.data if you already have it. QR login below can fill this automatically.',
+  },
+];
+
 export const SPEECH_FIELDS: SettingsField[] = [
   {
     key: 'qwen_api_key',

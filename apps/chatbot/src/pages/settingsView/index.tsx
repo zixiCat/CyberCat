@@ -1,19 +1,27 @@
-import { Alert, Button, Input, Select } from 'antd';
+import { Alert, Button } from 'antd';
 import {
   Save,
+  ScanQrCode,
   Settings,
   Sparkles,
   Waves,
   X,
 } from 'lucide-react';
 import { useEffect } from 'react';
-import { useSetState } from 'react-use';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useSetState } from 'react-use';
 
 import { loadBackendJson, waitForBackend } from '../backendShared';
+import { BilibiliAuthPanel } from './BilibiliAuthPanel';
 import { SettingsFieldList } from './SettingsFieldList';
+import {
+  BILIBILI_FIELDS,
+  REQUIRED_FIELDS,
+  SETTINGS_FIELDS,
+  SettingsValue,
+  SPEECH_FIELDS,
+} from './settingsFields';
 import { SpeechLab } from './SpeechLab';
-import { REQUIRED_FIELDS, SETTINGS_FIELDS, SettingsValue, SPEECH_FIELDS } from './settingsFields';
 
 const NAVIGATE_BACK_DELTA = -1;
 
@@ -32,7 +40,7 @@ interface SettingsViewState {
   saving: boolean;
   message: SettingsMessage | null;
   revealedKeys: Set<string>;
-  activeSection: 'ai' | 'speech';
+  activeSection: 'ai' | 'bilibili' | 'speech';
 }
 
 const loadSettingsValues = async () =>
@@ -54,6 +62,11 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
   });
   const { values, saving, message, revealedKeys, activeSection } = state;
   const backgroundLocation = location.state?.backgroundLocation;
+
+  const refreshSettingsValues = async () => {
+    const nextValues = await loadSettingsValues();
+    setState({ values: nextValues });
+  };
 
   const handleClose = () => {
     if (backgroundLocation) {
@@ -159,7 +172,10 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
         ${
           isOverlay
-            ? 'fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 backdrop-blur-[3px]'
+            ? `
+              fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3
+              backdrop-blur-[3px]
+            `
             : 'min-h-screen p-3'
         }
       `}
@@ -254,6 +270,38 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
               <button
                 type="button"
+                onClick={() => setState({ activeSection: 'bilibili' })}
+                className={`
+                  cybercat-nav-item
+
+                  ${
+                  activeSection === 'bilibili'
+                    ? `
+                      cybercat-nav-item-active text-zinc-900
+
+                      dark:text-zinc-100
+                    `
+                    : `
+                      text-zinc-600
+
+                      hover:border-zinc-200 hover:bg-white hover:text-zinc-900
+
+                      dark:text-zinc-300
+
+                      dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+                    `
+                }
+                `}
+              >
+                <ScanQrCode size={16} />
+                <span>
+                  <span className="block text-sm font-medium">Bilibili</span>
+                  <span className="block text-xs opacity-70">Local cookie and QR login</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setState({ activeSection: 'speech' })}
                 className={`
                   cybercat-nav-item
@@ -316,7 +364,11 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
               dark:text-zinc-100
             ">
-              {activeSection === 'ai' ? 'AI & APIs' : 'Speech Tools'}
+              {activeSection === 'ai'
+                ? 'AI & APIs'
+                : activeSection === 'bilibili'
+                  ? 'Bilibili'
+                  : 'Speech Tools'}
             </h2>
             <p className="
               mt-1 text-sm text-zinc-500
@@ -325,13 +377,62 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
             ">
               {activeSection === 'ai'
                 ? 'Set the providers and credentials the assistant depends on.'
-                : 'Tune recognition terms and run quick speech checks without leaving the page.'}
+                : activeSection === 'bilibili'
+                  ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
+                  : 'Tune recognition terms and run quick speech checks without leaving the page.'}
             </p>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             <div className="flex flex-col gap-4 pb-2">
+              {message && (
+                <Alert
+                  type={message.type === 'success' ? 'success' : 'error'}
+                  message={message.text}
+                  showIcon
+                />
+              )}
+
+              {hasRequiredMissing && (
+                <Alert
+                  type="warning"
+                  message={`Missing required: ${requiredMissing.map((f) => f.label).join(', ')}`}
+                  showIcon
+                />
+              )}
+
               {activeSection === 'ai' ? (
+                <div className="cybercat-panel p-5">
+                  <div className="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="
+                        text-sm font-semibold text-zinc-900
+
+                        dark:text-zinc-100
+                      ">
+                        AI & APIs
+                      </h3>
+                      <p className="
+                        mt-1 text-xs text-zinc-500
+
+                        dark:text-zinc-400
+                      ">
+                        Models, keys, and chat endpoints
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-6">
+                    <SettingsFieldList
+                      fields={SETTINGS_FIELDS}
+                      values={values}
+                      revealedKeys={revealedKeys}
+                      onValueChange={setValue}
+                      onToggleReveal={toggleReveal}
+                      showRequiredMarker
+                    />
+                  </div>
+                </div>
+              ) : activeSection === 'bilibili' ? (
                 <>
                   <div className="cybercat-panel p-5">
                     <div className="mb-5 flex items-start justify-between gap-3">
@@ -341,44 +442,29 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
                           dark:text-zinc-100
                         ">
-                          AI & APIs
+                          BBDown Settings
                         </h3>
                         <p className="
                           mt-1 text-xs text-zinc-500
 
                           dark:text-zinc-400
                         ">
-                          Models, keys, and chat endpoints
+                          Target URL and cookie for local Bilibili downloads
                         </p>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-6">
-                      <SettingsFieldList
-                        fields={SETTINGS_FIELDS}
-                        values={values}
-                        revealedKeys={revealedKeys}
-                        onValueChange={setValue}
-                        onToggleReveal={toggleReveal}
-                        showRequiredMarker
-                      />
-                    </div>
+                    <SettingsFieldList
+                      fields={BILIBILI_FIELDS}
+                      values={values}
+                      revealedKeys={revealedKeys}
+                      onValueChange={setValue}
+                      onToggleReveal={toggleReveal}
+                      showLeadingIcon
+                      controlSize="large"
+                    />
                   </div>
 
-                  {message && (
-                    <Alert
-                      type={message.type === 'success' ? 'success' : 'error'}
-                      message={message.text}
-                      showIcon
-                    />
-                  )}
-
-                  {hasRequiredMissing && (
-                    <Alert
-                      type="warning"
-                      message={`Missing required: ${requiredMissing.map((f) => f.label).join(', ')}`}
-                      showIcon
-                    />
-                  )}
+                  <BilibiliAuthPanel onCookieSaved={refreshSettingsValues} />
                 </>
               ) : (
                 <>
