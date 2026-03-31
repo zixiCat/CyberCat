@@ -1,12 +1,13 @@
 import { Button, Input, message, Popover, Select } from 'antd';
 import { Pencil, Plus, Settings, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSetState } from 'react-use';
 
 import { useTheme } from '../App';
 import { loadBackendJson, waitForBackend } from '../backendShared';
 import { SettingsProfilesPayload, SettingsProfileSummary } from '../chatView/types';
+import { useDeleteHoldButton } from './useDeleteHoldButton';
 
 interface ActionResult {
   ok: boolean;
@@ -47,7 +48,6 @@ interface SettingsProfileButtonState {
   activeProfileId: string;
   profileNameDraft: string;
   busy: boolean;
-  deleteHoldProgress: number;
 }
 
 export const SettingsProfileButton = ({
@@ -64,10 +64,8 @@ export const SettingsProfileButton = ({
     activeProfileId: '',
     profileNameDraft: '',
     busy: false,
-    deleteHoldProgress: HOLD_PROGRESS_EMPTY,
   });
-  const { open, profiles, activeProfileId, profileNameDraft, busy, deleteHoldProgress } = state;
-  const deleteHoldTimerRef = useRef<number | null>(null);
+  const { open, profiles, activeProfileId, profileNameDraft, busy } = state;
 
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId) ?? null;
   const trimmedProfileName = profileNameDraft.trim();
@@ -139,14 +137,6 @@ export const SettingsProfileButton = ({
       setState({ open: false });
     }
   }, [location.pathname, setState]);
-
-  useEffect(() => {
-    return () => {
-      if (deleteHoldTimerRef.current !== null) {
-        window.clearInterval(deleteHoldTimerRef.current);
-      }
-    };
-  }, []);
 
   const runProfileAction = async (
     action: () => Promise<string>,
@@ -221,43 +211,13 @@ export const SettingsProfileButton = ({
     await runProfileAction(() => deleteSettingsProfile(activeProfileId), 'Profile deleted.');
   };
 
-  const cancelDeleteHold = () => {
-    if (deleteHoldTimerRef.current !== null) {
-      window.clearInterval(deleteHoldTimerRef.current);
-      deleteHoldTimerRef.current = null;
-    }
-
-    setState({ deleteHoldProgress: HOLD_PROGRESS_EMPTY });
-  };
-
-  const startDeleteHold = () => {
-    if (deleteDisabled || deleteHoldTimerRef.current !== null) {
-      return;
-    }
-
-    const holdStartedAt = Date.now();
-    setState({ deleteHoldProgress: HOLD_PROGRESS_EMPTY });
-
-    deleteHoldTimerRef.current = window.setInterval(() => {
-      const elapsed = Date.now() - holdStartedAt;
-      const nextProgress = Math.min(elapsed / DELETE_HOLD_DURATION_MS, HOLD_PROGRESS_COMPLETE);
-
-      setState({ deleteHoldProgress: nextProgress });
-
-      if (nextProgress < HOLD_PROGRESS_COMPLETE) {
-        return;
-      }
-
-      if (deleteHoldTimerRef.current !== null) {
-        window.clearInterval(deleteHoldTimerRef.current);
-        deleteHoldTimerRef.current = null;
-      }
-
-      void handleProfileDelete().finally(() => {
-        setState({ deleteHoldProgress: HOLD_PROGRESS_EMPTY });
-      });
-    }, DELETE_HOLD_TICK_MS);
-  };
+  const deleteHold = useDeleteHoldButton({
+    durationMs: DELETE_HOLD_DURATION_MS,
+    tickMs: DELETE_HOLD_TICK_MS,
+    disabled: deleteDisabled,
+    onComplete: handleProfileDelete,
+  });
+  const deleteHoldProgress = deleteHold.progress;
 
   const handleOpenSettings = () => {
     if (location.pathname === '/settings') {
@@ -421,24 +381,24 @@ export const SettingsProfileButton = ({
                 danger
                 icon={<Trash2 size={14} />}
                 disabled={deleteDisabled}
-                onMouseDown={startDeleteHold}
-                onMouseUp={cancelDeleteHold}
-                onMouseLeave={cancelDeleteHold}
-                onTouchStart={startDeleteHold}
-                onTouchEnd={cancelDeleteHold}
-                onTouchCancel={cancelDeleteHold}
+                onMouseDown={deleteHold.start}
+                onMouseUp={deleteHold.cancel}
+                onMouseLeave={deleteHold.cancel}
+                onTouchStart={deleteHold.start}
+                onTouchEnd={deleteHold.cancel}
+                onTouchCancel={deleteHold.cancel}
                 onKeyDown={(event) => {
                   if (event.repeat) {
                     return;
                   }
 
                   if (event.key === ' ' || event.key === 'Enter') {
-                    startDeleteHold();
+                    deleteHold.start();
                   }
                 }}
                 onKeyUp={(event) => {
                   if (event.key === ' ' || event.key === 'Enter') {
-                    cancelDeleteHold();
+                    deleteHold.cancel();
                   }
                 }}
                 className="w-full"
