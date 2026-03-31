@@ -10,7 +10,7 @@ import {
 } from './chatShared';
 import { useChatSessionStore } from './chatSessionStore';
 import { useChatUiStore } from './chatUiStore';
-import { ChatBackendSignalHandlers, ChunkSegment, Session, Task } from './types';
+import { ChatBackendSignalHandlers, ChunkSegment, PromptOption, Session, Task } from './types';
 
 const ZERO_DELAY_MS = 0;
 const ZERO_PROMPTS = 0;
@@ -125,7 +125,7 @@ export const useChatBootstrap = ({
       void reloadProfileSettings();
 
       const [promptsResult, sessionsResult] = await Promise.allSettled([
-        loadBackendJson<string[]>(() => backend.get_available_prompts?.(), 'Available prompts'),
+        loadBackendJson<PromptOption[]>(() => backend.get_available_prompts?.(), 'Available prompts'),
         backend.load_sessions ? backend.load_sessions() : Promise.resolve(''),
       ]);
 
@@ -137,10 +137,10 @@ export const useChatBootstrap = ({
             return;
           }
 
-          const defaultPrompt = prompts.includes('Default.md') ? 'Default.md' : prompts[0];
-          useChatUiStore.getState().setUiState({ selectedPromptFile: defaultPrompt });
+          const defaultPrompt = prompts.find((p) => p.file === 'Default.md') ?? prompts[0];
+          useChatUiStore.getState().setUiState({ selectedPromptFile: defaultPrompt.file });
           backend
-            .get_prompt_content?.(defaultPrompt)
+            .get_prompt_content?.(defaultPrompt.file)
             .then((content: string) => {
               if (cancelledRef.current) {
                 return;

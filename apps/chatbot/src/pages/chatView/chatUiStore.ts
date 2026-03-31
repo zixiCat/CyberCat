@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 
-import { VoiceOption } from './types';
+import { PromptOption, VoiceOption } from './types';
 
 const DEFAULT_CHAT_SCROLL_PADDING_BOTTOM = 240;
 
 interface ChatUiStateData {
   isSidebarCollapsed: boolean;
-  availablePrompts: string[];
+  availablePrompts: PromptOption[];
   selectedPromptFile: string;
   selectedPromptContent: string;
   voiceOptions: VoiceOption[];

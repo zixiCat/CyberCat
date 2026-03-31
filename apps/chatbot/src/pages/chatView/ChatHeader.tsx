@@ -210,8 +210,8 @@ export const ChatHeader = ({
             });
           }}
           options={availablePrompts.map((p) => ({
-            label: p.replace(/\.(md|txt)$/, ''),
-            value: p,
+            label: p.name,
+            value: p.file,
           }))}
           suffixIcon={<FileText size={10} className="opacity-40" />}
           variant="borderless"

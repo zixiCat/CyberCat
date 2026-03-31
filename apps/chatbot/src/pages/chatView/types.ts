@@ -20,6 +20,11 @@ export interface Session {
   systemPromptFile?: string;
 }
 
+export interface PromptOption {
+  file: string;
+  name: string;
+}
+
 export interface VoiceOption {
   label: string;
   value: string;
