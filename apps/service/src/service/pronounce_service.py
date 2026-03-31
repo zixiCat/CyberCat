@@ -16,6 +16,8 @@ _lock = threading.Lock()
 _request_lock = threading.Lock()
 _controller = keyboard.Controller()
 _latest_request_id = 0
+_last_hotkey_time = 0.0
+_HOTKEY_DEBOUNCE_SECONDS = 0.3
 
 _MODIFIER_KEYS = (
     keyboard.Key.alt,
@@ -99,6 +101,11 @@ def _handle(request_id: int) -> None:
 
 
 def _on_hotkey() -> None:
+    global _last_hotkey_time
+    now = time.time()
+    if now - _last_hotkey_time < _HOTKEY_DEBOUNCE_SECONDS:
+        return
+    _last_hotkey_time = now
     request_id = _next_request_id()
     threading.Thread(target=_handle, args=(request_id,), daemon=True).start()
 
