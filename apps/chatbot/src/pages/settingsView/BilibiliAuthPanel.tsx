@@ -375,10 +375,10 @@ export const BilibiliAuthPanel = ({ onCookieSaved }: BilibiliAuthPanelProps) => 
           dark:border-white/10 dark:bg-zinc-900/70
         ">
           {qrUrl ? (
-            <QRCode value={qrUrl} size={120} />
+            <QRCode value={qrUrl} size={300} />
           ) : (
             <div className="
-              flex size-[136px] items-center justify-center text-zinc-300
+              flex size-[316px] items-center justify-center text-zinc-300
 
               dark:text-zinc-600
             ">
