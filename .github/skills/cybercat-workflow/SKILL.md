@@ -24,6 +24,7 @@ Use this skill when the task is specific to CyberCat and the agent needs repo-aw
    - All project files use LF line endings.
    - Frontend work in `apps/chatbot/**` should follow the existing React 19, `react-use`, Ant Design 6, Tailwind, and Qt WebChannel bridge patterns already used in the app.
    - Service work in `apps/service/**` should keep orchestration in service modules, prompts in `apps/service/src/prompts`, shared helpers in `apps/service/src/utils`, and generated files in the top-level `output` folder.
+   - PowerToys-style optional modules should use a persisted feature flag, a Settings > Features toggle, hidden module UI when disabled, and lazy backend handler imports guarded at the `BackendService` boundary.
 3. Read only the files needed for the requested workflow. Prefer minimal, targeted edits over broad refactors.
 4. For cross-layer issues, trace the flow end-to-end:
    - UI entry points and hooks in `apps/chatbot/src/pages/**`

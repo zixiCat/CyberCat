@@ -31,6 +31,7 @@ applyTo: 'apps/chatbot/**'
 - The frontend runs inside the desktop shell and talks to Python through Qt WebChannel, not through a shared OpenAPI client.
 - Treat `window.backend` as the primary backend boundary. Guard for its absence during startup and retry only where the existing app already does so.
 - Keep QWebChannel setup centralized at the app level. Feature modules should consume the established `window.backend` surface instead of reinitializing the bridge.
+- Optional desktop features should be enabled from a dedicated settings toggle, hidden from feature-specific navigation when off, and treated as unavailable unless the backend feature flag is enabled.
 - Serialize structured payloads explicitly across the bridge and parse JSON carefully at the boundary.
 - Do not invent `fetch`, Axios, or generated API clients for frontend-to-service calls unless the project architecture changes first.
 
