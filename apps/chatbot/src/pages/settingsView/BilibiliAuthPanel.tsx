@@ -347,7 +347,7 @@ export const BilibiliAuthPanel = ({ onCookieSaved }: BilibiliAuthPanelProps) => 
         </h3>
 
         <div className={`
-          inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium
+          inline-flex items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-xs font-medium
 
           ${statusBadge.className}
         `}>
