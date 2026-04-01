@@ -4,6 +4,7 @@ export interface SettingsField {
   placeholder: string;
   required: boolean;
   secret: boolean;
+  control?: 'switch';
   multiline?: boolean;
   rows?: number;
   description?: string;
@@ -13,6 +14,19 @@ export interface SettingsField {
 export type SettingsValue = string | boolean;
 
 const DEFAULT_TEXTAREA_ROWS = 4;
+
+export const FEATURE_FIELDS: SettingsField[] = [
+  {
+    key: 'feature_bilibili_enabled',
+    label: 'Enable Bilibili tools',
+    placeholder: '',
+    required: false,
+    secret: false,
+    control: 'switch',
+    description:
+      'Turns on the Bilibili settings page, QR login flow, and backend handlers. Leave this off to keep the feature dormant.',
+  },
+];
 
 export const SETTINGS_FIELDS: SettingsField[] = [
   {

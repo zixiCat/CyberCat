@@ -14,6 +14,7 @@ from typing import Any
 # All recognised setting keys with their env-var names and defaults.
 _FIELDS: dict[str, tuple[str, Any]] = {
     # key            -> (ENV_VAR_NAME, default_value)
+    "feature_bilibili_enabled": ("FEATURE_BILIBILI_ENABLED", False),
     "bilibili_cookie": ("BILIBILI_COOKIE", ""),
     "bilibili_url": ("BILIBILI_URL", ""),
     "qwen_api_key": ("QWEN_API_KEY", ""),
@@ -30,6 +31,10 @@ _FIELDS: dict[str, tuple[str, Any]] = {
     "openai_base_url": ("OPENAI_BASE_URL", ""),
     "openai_model": ("OPENAI_MODEL", ""),
     "openai_enable_thinking": ("OPENAI_ENABLE_THINKING", False),
+}
+
+FEATURE_FIELD_KEYS: dict[str, str] = {
+    "bilibili": "feature_bilibili_enabled",
 }
 
 REQUIRED_KEYS = ["qwen_api_key", "openai_api_key", "openai_base_url", "openai_model"]
@@ -58,7 +63,17 @@ def _default_settings() -> dict[str, Any]:
         settings[key] = (
             ConfigService._coerce_value(env_value, default) if env_value is not None else default
         )
+
+    if os.getenv("FEATURE_BILIBILI_ENABLED") is None and _has_legacy_bilibili_settings(settings):
+        settings["feature_bilibili_enabled"] = True
+
     return settings
+
+
+def _has_legacy_bilibili_settings(settings: dict[str, Any]) -> bool:
+    return any(
+        bool(str(settings.get(key) or "").strip()) for key in ("bilibili_cookie", "bilibili_url")
+    )
 
 
 class ConfigService:
@@ -119,6 +134,18 @@ class ConfigService:
     def get_bool(self, key: str, fallback: bool = False) -> bool:
         return bool(self._coerce_value(self._active_settings().get(key, fallback), fallback))
 
+    def is_feature_enabled(self, feature_name: str) -> bool:
+        field_key = FEATURE_FIELD_KEYS.get(feature_name)
+        if field_key is None:
+            raise ValueError(f"Unknown feature: {feature_name}")
+        return self.get_bool(field_key)
+
+    def get_feature_flags(self) -> dict[str, bool]:
+        return {
+            feature_name: self.get_bool(field_key)
+            for feature_name, field_key in FEATURE_FIELD_KEYS.items()
+        }
+
     def is_configured(self) -> bool:
         """Return True if all required keys have non-empty values."""
         active_settings = self._active_settings()
@@ -130,6 +157,7 @@ class ConfigService:
             "configured": self.is_configured(),
             "missing": [key for key in REQUIRED_KEYS if not self._active_settings().get(key)],
             "activeProfileId": self._active_profile_id,
+            "features": self.get_feature_flags(),
         }
 
     def get_profiles_summary(self) -> dict[str, Any]:
@@ -290,6 +318,12 @@ class ConfigService:
             for key, (_, default) in _FIELDS.items():
                 if key in saved_settings and saved_settings[key] is not None:
                     merged[key] = self._coerce_setting_value(key, saved_settings[key], default)
+
+            if "feature_bilibili_enabled" not in saved_settings and _has_legacy_bilibili_settings(
+                saved_settings
+            ):
+                merged["feature_bilibili_enabled"] = True
+
         return merged
 
     def _require_profile(self, profile_id: str) -> dict[str, Any]:

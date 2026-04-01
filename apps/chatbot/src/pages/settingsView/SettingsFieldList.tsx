@@ -1,4 +1,4 @@
-import { Input, Select } from 'antd';
+import { Input, Select, Switch } from 'antd';
 import { Eye, EyeOff, KeyRound } from 'lucide-react';
 
 import { SettingsField, SettingsValue } from './settingsFields';
@@ -16,6 +16,9 @@ interface SettingsFieldListProps {
 
 const getStringValue = (values: Record<string, SettingsValue>, key: string) =>
   (typeof values[key] === 'string' ? values[key] : '');
+
+const getBooleanValue = (values: Record<string, SettingsValue>, key: string) =>
+  Boolean(values[key]);
 
 export const SettingsFieldList = ({
   fields,
@@ -49,7 +52,23 @@ export const SettingsFieldList = ({
           {field.label}
           {showRequiredMarker && field.required && <span className="ml-1 text-red-400">*</span>}
         </label>
-        {field.multiline ? (
+        {field.control === 'switch' ? (
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={getBooleanValue(values, field.key)}
+              onChange={(checked) => onValueChange(field.key, checked)}
+            />
+            <span
+              className="
+                text-sm text-zinc-500
+
+                dark:text-zinc-400
+              "
+            >
+              {getBooleanValue(values, field.key) ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+        ) : field.multiline ? (
           <Input.TextArea
             rows={field.rows}
             value={getStringValue(values, field.key)}

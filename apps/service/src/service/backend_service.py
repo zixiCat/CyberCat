@@ -11,11 +11,6 @@ from PySide6.QtCore import QObject, Signal, Slot
 from constants.tts import get_voice_options
 from service.backend.asr_handler import start_asr_test_recording, stop_asr_test_recording
 from service.backend.audio_handler import get_audio_file, save_audio_chunks
-from service.backend.bilibili_handler import (
-    get_bilibili_auth_status,
-    poll_bilibili_qr_login,
-    start_bilibili_qr_login,
-)
 from service.backend.prompt_handler import get_available_prompts, get_prompt_content
 from service.backend.session_handler import (
     delete_session,
@@ -27,6 +22,27 @@ from service.config_service import config_service
 from service.qwen_tts_service import qwen_tts_service
 from service.task_service import task_service
 from utils.markdown_text import markdown_to_plain_text_single_line
+
+BILIBILI_FEATURE_DISABLED_ERROR = "Bilibili is disabled. Enable it in Settings > Features."
+
+
+def _bilibili_disabled_status() -> str:
+    return json.dumps(
+        {
+            "featureEnabled": False,
+            "configured": False,
+            "state": "not_configured",
+            "remoteChecked": False,
+            "hasSessData": False,
+            "userId": "",
+            "username": "",
+            "expiresAt": None,
+        }
+    )
+
+
+def _bilibili_disabled_result() -> str:
+    return json.dumps({"ok": False, "error": BILIBILI_FEATURE_DISABLED_ERROR})
 
 
 class BackendService(QObject):
@@ -120,14 +136,29 @@ class BackendService(QObject):
 
     @Slot(result=str)
     def get_bilibili_auth_status(self) -> str:
+        if not config_service.is_feature_enabled("bilibili"):
+            return _bilibili_disabled_status()
+
+        from service.backend.bilibili_handler import get_bilibili_auth_status
+
         return get_bilibili_auth_status()
 
     @Slot(result=str)
     def start_bilibili_qr_login(self) -> str:
+        if not config_service.is_feature_enabled("bilibili"):
+            return _bilibili_disabled_result()
+
+        from service.backend.bilibili_handler import start_bilibili_qr_login
+
         return start_bilibili_qr_login()
 
     @Slot(str, result=str)
     def poll_bilibili_qr_login(self, session_id: str) -> str:
+        if not config_service.is_feature_enabled("bilibili"):
+            return _bilibili_disabled_result()
+
+        from service.backend.bilibili_handler import poll_bilibili_qr_login
+
         return poll_bilibili_qr_login(session_id)
 
     # ── Settings profiles ─────────────────────────────────────────

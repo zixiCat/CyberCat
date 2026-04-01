@@ -1,5 +1,6 @@
 import { Alert, Button } from 'antd';
 import {
+  Blocks,
   Save,
   ScanQrCode,
   Settings,
@@ -16,6 +17,7 @@ import { BilibiliAuthPanel } from './BilibiliAuthPanel';
 import { SettingsFieldList } from './SettingsFieldList';
 import {
   BILIBILI_FIELDS,
+  FEATURE_FIELDS,
   REQUIRED_FIELDS,
   SETTINGS_FIELDS,
   SettingsValue,
@@ -40,7 +42,7 @@ interface SettingsViewState {
   saving: boolean;
   message: SettingsMessage | null;
   revealedKeys: Set<string>;
-  activeSection: 'ai' | 'bilibili' | 'speech';
+  activeSection: 'features' | 'ai' | 'bilibili' | 'speech';
 }
 
 const loadSettingsValues = async () =>
@@ -62,6 +64,9 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
   });
   const { values, saving, message, revealedKeys, activeSection } = state;
   const backgroundLocation = location.state?.backgroundLocation;
+  const bilibiliEnabled = Boolean(values.feature_bilibili_enabled);
+  const resolvedActiveSection =
+    !bilibiliEnabled && activeSection === 'bilibili' ? 'features' : activeSection;
 
   const refreshSettingsValues = async () => {
     const nextValues = await loadSettingsValues();
@@ -238,12 +243,44 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
             <nav className="space-y-2">
               <button
                 type="button"
+                onClick={() => setState({ activeSection: 'features' })}
+                className={`
+                  cybercat-nav-item
+
+                  ${
+                  resolvedActiveSection === 'features'
+                    ? `
+                      cybercat-nav-item-active text-zinc-900
+
+                      dark:text-zinc-100
+                    `
+                    : `
+                      text-zinc-600
+
+                      hover:border-zinc-200 hover:bg-white hover:text-zinc-900
+
+                      dark:text-zinc-300
+
+                      dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+                    `
+                }
+                `}
+              >
+                <Blocks size={16} />
+                <span>
+                  <span className="block text-sm font-medium">Features</span>
+                  <span className="block text-xs opacity-70">Enable optional modules</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setState({ activeSection: 'ai' })}
                 className={`
                   cybercat-nav-item
 
                   ${
-                  activeSection === 'ai'
+                  resolvedActiveSection === 'ai'
                     ? `
                       cybercat-nav-item-active text-zinc-900
 
@@ -268,37 +305,39 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setState({ activeSection: 'bilibili' })}
-                className={`
-                  cybercat-nav-item
+              {bilibiliEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setState({ activeSection: 'bilibili' })}
+                  className={`
+                    cybercat-nav-item
 
-                  ${
-                  activeSection === 'bilibili'
-                    ? `
-                      cybercat-nav-item-active text-zinc-900
+                    ${
+                    resolvedActiveSection === 'bilibili'
+                      ? `
+                        cybercat-nav-item-active text-zinc-900
 
-                      dark:text-zinc-100
-                    `
-                    : `
-                      text-zinc-600
+                        dark:text-zinc-100
+                      `
+                      : `
+                        text-zinc-600
 
-                      hover:border-zinc-200 hover:bg-white hover:text-zinc-900
+                        hover:border-zinc-200 hover:bg-white hover:text-zinc-900
 
-                      dark:text-zinc-300
+                        dark:text-zinc-300
 
-                      dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-                    `
-                }
-                `}
-              >
-                <ScanQrCode size={16} />
-                <span>
-                  <span className="block text-sm font-medium">Bilibili</span>
-                  <span className="block text-xs opacity-70">Local cookie and QR login</span>
-                </span>
-              </button>
+                        dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+                      `
+                  }
+                  `}
+                >
+                  <ScanQrCode size={16} />
+                  <span>
+                    <span className="block text-sm font-medium">Bilibili</span>
+                    <span className="block text-xs opacity-70">Local cookie and QR login</span>
+                  </span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -307,7 +346,7 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                   cybercat-nav-item
 
                   ${
-                  activeSection === 'speech'
+                  resolvedActiveSection === 'speech'
                     ? `
                       cybercat-nav-item-active text-zinc-900
 
@@ -364,22 +403,26 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
               dark:text-zinc-100
             ">
-              {activeSection === 'ai'
-                ? 'AI & APIs'
-                : activeSection === 'bilibili'
-                  ? 'Bilibili'
-                  : 'Speech Tools'}
+              {resolvedActiveSection === 'features'
+                ? 'Features'
+                : resolvedActiveSection === 'ai'
+                  ? 'AI & APIs'
+                  : resolvedActiveSection === 'bilibili'
+                    ? 'Bilibili'
+                    : 'Speech Tools'}
             </h2>
             <p className="
               mt-1 text-sm text-zinc-500
 
               dark:text-zinc-400
             ">
-              {activeSection === 'ai'
-                ? 'Set the providers and credentials the assistant depends on.'
-                : activeSection === 'bilibili'
-                  ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
-                  : 'Tune recognition terms and run quick speech checks without leaving the page.'}
+              {resolvedActiveSection === 'features'
+                ? 'Turn optional modules on only when you want them available.'
+                : resolvedActiveSection === 'ai'
+                  ? 'Set the providers and credentials the assistant depends on.'
+                  : resolvedActiveSection === 'bilibili'
+                    ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
+                    : 'Tune recognition terms and run quick speech checks without leaving the page.'}
             </p>
           </div>
 
@@ -401,7 +444,35 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                 />
               )}
 
-              {activeSection === 'ai' ? (
+              {resolvedActiveSection === 'features' ? (
+                <div className="cybercat-panel p-5">
+                  <div className="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="
+                        text-sm font-semibold text-zinc-900
+
+                        dark:text-zinc-100
+                      ">
+                        Optional Features
+                      </h3>
+                      <p className="
+                        mt-1 text-xs text-zinc-500
+
+                        dark:text-zinc-400
+                      ">
+                        Disabled features stay hidden and their backend actions remain off.
+                      </p>
+                    </div>
+                  </div>
+                  <SettingsFieldList
+                    fields={FEATURE_FIELDS}
+                    values={values}
+                    revealedKeys={revealedKeys}
+                    onValueChange={setValue}
+                    onToggleReveal={toggleReveal}
+                  />
+                </div>
+              ) : resolvedActiveSection === 'ai' ? (
                 <div className="cybercat-panel p-5">
                   <div className="mb-5 flex items-start justify-between gap-3">
                     <div>
@@ -432,7 +503,7 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                     />
                   </div>
                 </div>
-              ) : activeSection === 'bilibili' ? (
+              ) : resolvedActiveSection === 'bilibili' ? (
                 <>
                   <div className="cybercat-panel p-5">
                     <div className="mb-5 flex items-start justify-between gap-3">
