@@ -19,6 +19,7 @@ from service.backend.session_handler import (
 )
 from service.backend.tts_handler import run_tts_test
 from service.config_service import config_service
+from service.qwen_service import qwen_service
 from service.qwen_tts_service import qwen_tts_service
 from service.task_service import task_service
 from utils.markdown_text import markdown_to_plain_text_single_line
@@ -43,6 +44,12 @@ def _bilibili_disabled_status() -> str:
 
 def _bilibili_disabled_result() -> str:
     return json.dumps({"ok": False, "error": BILIBILI_FEATURE_DISABLED_ERROR})
+
+
+def _reload_runtime_settings() -> None:
+    task_service.reload_config()
+    qwen_service.reload_config()
+    qwen_tts_service.reload_config()
 
 
 class BackendService(QObject):
@@ -123,11 +130,7 @@ class BackendService(QObject):
         try:
             updates = json.loads(settings_json)
             config_service.save(updates)
-            qwen_tts_service.refresh_voice_catalog(
-                default_voice=config_service.get("voice"),
-                random_voice_pool=config_service.get("random_voice_pool"),
-            )
-            qwen_tts_service.set_base_url(config_service.get("qwen_tts_base_url"))
+            _reload_runtime_settings()
             return json.dumps({"ok": True})
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc)})
@@ -186,7 +189,10 @@ class BackendService(QObject):
     @Slot(str, result=str)
     def delete_settings_profile(self, profile_id: str) -> str:
         try:
+            was_active_profile = config_service.get_active_profile()["id"] == profile_id
             new_active = config_service.delete_profile(profile_id)
+            if was_active_profile:
+                _reload_runtime_settings()
             return json.dumps({"ok": True, "activeProfileId": new_active})
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc)})
@@ -195,6 +201,7 @@ class BackendService(QObject):
     def select_settings_profile(self, profile_id: str) -> str:
         try:
             config_service.set_active_profile(profile_id)
+            _reload_runtime_settings()
             return json.dumps({"ok": True})
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc)})

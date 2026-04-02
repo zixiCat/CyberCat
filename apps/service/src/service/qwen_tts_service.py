@@ -64,17 +64,12 @@ class QwenTTSService:
     """Qwen-based TTS with streaming playback support."""
 
     def __init__(self) -> None:
-        self.api_key: str = config_service.get("qwen_api_key")
-        self.base_url: str = config_service.get("qwen_tts_base_url") or DEFAULT_TTS_BASE_URL
-        self.apply_base_url()
-
+        self.api_key = ""
+        self.base_url = DEFAULT_TTS_BASE_URL
         self.voices: list[str] = []
-        self.default_voice: str = AUTO_VOICE
+        self.default_voice = AUTO_VOICE
         self.random_voice_pool: list[str] = []
-        self.refresh_voice_catalog(
-            default_voice=config_service.get("voice", AUTO_VOICE),
-            random_voice_pool=config_service.get("random_voice_pool", ""),
-        )
+        self.reload_config()
 
         # Playback thread state
         self._session_lock = threading.Lock()
@@ -83,11 +78,19 @@ class QwenTTSService:
         self._pending_request: _PlaybackRequest | None = None
         threading.Thread(target=self._run_playback_loop, daemon=True).start()
 
+    def reload_config(self) -> None:
+        self.api_key = str(config_service.get("qwen_api_key") or "").strip()
+        self.set_base_url(str(config_service.get("qwen_tts_base_url") or "").strip())
+        self.refresh_voice_catalog(
+            default_voice=config_service.get("voice", AUTO_VOICE),
+            random_voice_pool=config_service.get("random_voice_pool", ""),
+        )
+
     def refresh_voice_catalog(
         self,
         default_voice: str | None = None,
         random_voice_pool: list[str] | str | None = None,
-    ):
+    ) -> None:
         self.voices = get_all_voices()
         next_default_voice = self.default_voice if default_voice is None else default_voice
         self.default_voice = coerce_voice_selection(next_default_voice)
@@ -96,7 +99,7 @@ class QwenTTSService:
         )
         self.random_voice_pool = normalize_voice_pool(next_random_voice_pool)
 
-    def set_default_voice(self, voice: str):
+    def set_default_voice(self, voice: str) -> None:
         self.voices = get_all_voices()
         if voice != AUTO_VOICE and voice not in self.voices:
             raise ValueError(f"Unsupported voice: {voice}")
@@ -105,7 +108,7 @@ class QwenTTSService:
     def get_default_voice(self) -> str:
         return self.default_voice
 
-    def set_random_voice_pool(self, voices: list[str] | str | None):
+    def set_random_voice_pool(self, voices: list[str] | str | None) -> None:
         self.voices = get_all_voices()
         self.random_voice_pool = normalize_voice_pool(voices)
 

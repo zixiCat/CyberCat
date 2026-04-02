@@ -25,9 +25,17 @@ class QwenASRService:
     """Transcribes audio files using Qwen-ASR via DashScope."""
 
     def __init__(self) -> None:
-        self.api_key: str = config_service.get("qwen_api_key")
-        self.base_url: str = config_service.get("qwen_asr_base_url") or DEFAULT_ASR_BASE_URL
-        self.hotwords: list[str] = _parse_hotwords(config_service.get("qwen_hotwords", ""))
+        self.api_key = ""
+        self.base_url = DEFAULT_ASR_BASE_URL
+        self.hotwords: list[str] = []
+        self.reload_config()
+
+    def reload_config(self) -> None:
+        self.api_key = str(config_service.get("qwen_api_key") or "").strip()
+        self.base_url = (
+            str(config_service.get("qwen_asr_base_url") or "").strip() or DEFAULT_ASR_BASE_URL
+        )
+        self.hotwords = _parse_hotwords(str(config_service.get("qwen_hotwords", "") or ""))
 
     def transcribe_audio(self, file_path: str) -> str:
         """Transcribe an audio file and return the recognised text."""
