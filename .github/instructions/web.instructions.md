@@ -18,7 +18,7 @@ applyTo: 'apps/chatbot/**'
 ## 2. UI Component Strategy (Ant Design 6)
 
 - **Hybrid Styling:**
-  - **Ant Design 6:** Mandatory for complex components: `Table`, `Modal`, `Form`, `DatePicker`, `Select`. Don't use any the following components: `Col`, `Row`, `Card`, `Badge`. For simple components, prefer Tailwind v4 CSS, if you see the above components that can be replaced with Tailwind, please replace them with Tailwind v4 CSS.
+  - **Ant Design 6:** Mandatory for complex components: `Table`, `Modal`, `Form`, `DatePicker`, `Select`. Don't use any the following components: `Col`, `Row`, `Card`, `Badge`. For simple components, prefer Tailwind v4 CSS, if you see the above components in existing files, please replace them with Tailwind v4 CSS.
   - **Tailwind v4 CSS:** Use exclusively for layout (Flex/Grid), spacing, and micro-components.
   - **Spacing Standard:** Use a factor of `5` (e.g., `p-5`, `m-5`, `gap-5`) for all container spacing and layouts.
 - **Icons:** Use `lucide-react` for all UI icons.
