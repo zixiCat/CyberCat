@@ -18,9 +18,9 @@ applyTo: 'apps/chatbot/**'
 ## 2. UI Component Strategy (Ant Design 6)
 
 - **Hybrid Styling:**
-	- **Ant Design 6:** Mandatory for complex components: `Table`, `Modal`, `Form`, `DatePicker`, `Select`.
-	- **Tailwind v4 CSS:** Use exclusively for layout (Flex/Grid), spacing, and micro-components.
-	- **Spacing Standard:** Use a factor of `5` (e.g., `p-5`, `m-5`, `gap-5`) for all container spacing and layouts.
+  - **Ant Design 6:** Mandatory for complex components: `Table`, `Modal`, `Form`, `DatePicker`, `Select`. Don't use any the following components: `Col`, `Row`, `Card`, `Badge`. For simple components, prefer Tailwind v4 CSS, if you see the above components that can be replaced with Tailwind, please replace them with Tailwind v4 CSS.
+  - **Tailwind v4 CSS:** Use exclusively for layout (Flex/Grid), spacing, and micro-components.
+  - **Spacing Standard:** Use a factor of `5` (e.g., `p-5`, `m-5`, `gap-5`) for all container spacing and layouts.
 - **Icons:** Use `lucide-react` for all UI icons.
 - **Typography:** Minimum font size is **14px** for readability.
 - **Theming:** Default to Light Mode. Apply `dark:` utility classes for Tailwind dark mode support (e.g., `dark:text-white`).
@@ -37,6 +37,5 @@ applyTo: 'apps/chatbot/**'
 
 ## 4. Coding Patterns
 
-- **Line Endings:** Enforce **LF** for all project files.
 - **Components:** Functional components only, with explicit TypeScript interfaces for public props.
-- **Module Size:** When editing a large existing file, extract a helper, hook, or sub-component if it meaningfully reduces complexity, but do not refactor purely to satisfy a hard line-count target.
+- **Feature Structure:** Prefer small, focused components, hooks, and stores. When a file becomes difficult to follow, extract a sub-component, hook, or feature-local helper that clarifies responsibility and keeps state close to the feature.
