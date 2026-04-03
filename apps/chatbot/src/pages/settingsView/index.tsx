@@ -1,5 +1,6 @@
 import { Alert, Button } from 'antd';
 import {
+  Archive,
   Blocks,
   Save,
   ScanQrCode,
@@ -14,6 +15,7 @@ import { useSetState } from 'react-use';
 
 import { loadBackendJson, waitForBackend } from '../backendShared';
 import { BilibiliAuthPanel } from './BilibiliAuthPanel';
+import { FileIngestTargetsEditor } from './FileIngestTargetsEditor';
 import { SettingsFieldList } from './SettingsFieldList';
 import {
   BILIBILI_FIELDS,
@@ -42,7 +44,7 @@ interface SettingsViewState {
   saving: boolean;
   message: SettingsMessage | null;
   revealedKeys: Set<string>;
-  activeSection: 'features' | 'ai' | 'bilibili' | 'speech';
+  activeSection: 'features' | 'ai' | 'bilibili' | 'fileIngest' | 'speech';
 }
 
 const loadSettingsValues = async () =>
@@ -65,8 +67,35 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
   const { values, saving, message, revealedKeys, activeSection } = state;
   const backgroundLocation = location.state?.backgroundLocation;
   const bilibiliEnabled = Boolean(values.feature_bilibili_enabled);
+  const fileIngestEnabled = Boolean(values.feature_file_ingest_enabled);
   const resolvedActiveSection =
-    !bilibiliEnabled && activeSection === 'bilibili' ? 'features' : activeSection;
+    !bilibiliEnabled && activeSection === 'bilibili'
+      ? 'features'
+      : !fileIngestEnabled && activeSection === 'fileIngest'
+        ? 'features'
+        : activeSection;
+
+  const sectionTitle =
+    resolvedActiveSection === 'features'
+      ? 'Features'
+      : resolvedActiveSection === 'ai'
+        ? 'AI & APIs'
+        : resolvedActiveSection === 'bilibili'
+          ? 'Bilibili'
+          : resolvedActiveSection === 'fileIngest'
+            ? 'File Ingest'
+            : 'Speech Tools';
+
+  const sectionDescription =
+    resolvedActiveSection === 'features'
+      ? 'Turn optional modules on only when you want them available.'
+      : resolvedActiveSection === 'ai'
+        ? 'Set the providers and credentials the assistant depends on.'
+        : resolvedActiveSection === 'bilibili'
+          ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
+          : resolvedActiveSection === 'fileIngest'
+            ? 'Choose one or more archive folders with relative or absolute paths, then describe what each folder should collect before CyberCat appends dated notes inside them.'
+            : 'Tune recognition terms and run quick speech checks without leaving the page.';
 
   const refreshSettingsValues = async () => {
     const nextValues = await loadSettingsValues();
@@ -339,6 +368,40 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                 </button>
               )}
 
+              {fileIngestEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setState({ activeSection: 'fileIngest' })}
+                  className={`
+                    cybercat-nav-item
+
+                    ${
+                    resolvedActiveSection === 'fileIngest'
+                      ? `
+                        cybercat-nav-item-active text-zinc-900
+
+                        dark:text-zinc-100
+                      `
+                      : `
+                        text-zinc-600
+
+                        hover:border-zinc-200 hover:bg-white hover:text-zinc-900
+
+                        dark:text-zinc-300
+
+                        dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+                      `
+                  }
+                  `}
+                >
+                  <Archive size={16} />
+                  <span>
+                    <span className="block text-sm font-medium">File Ingest</span>
+                    <span className="block text-xs opacity-70">Drop local files into notes</span>
+                  </span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setState({ activeSection: 'speech' })}
@@ -403,26 +466,14 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
               dark:text-zinc-100
             ">
-              {resolvedActiveSection === 'features'
-                ? 'Features'
-                : resolvedActiveSection === 'ai'
-                  ? 'AI & APIs'
-                  : resolvedActiveSection === 'bilibili'
-                    ? 'Bilibili'
-                    : 'Speech Tools'}
+              {sectionTitle}
             </h2>
             <p className="
               mt-1 text-sm text-zinc-500
 
               dark:text-zinc-400
             ">
-              {resolvedActiveSection === 'features'
-                ? 'Turn optional modules on only when you want them available.'
-                : resolvedActiveSection === 'ai'
-                  ? 'Set the providers and credentials the assistant depends on.'
-                  : resolvedActiveSection === 'bilibili'
-                    ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
-                    : 'Tune recognition terms and run quick speech checks without leaving the page.'}
+              {sectionDescription}
             </p>
           </div>
 
@@ -537,6 +588,31 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
                   <BilibiliAuthPanel onCookieSaved={refreshSettingsValues} />
                 </>
+              ) : resolvedActiveSection === 'fileIngest' ? (
+                <div className="cybercat-panel p-5">
+                  <div className="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="
+                        text-sm font-semibold text-zinc-900
+
+                        dark:text-zinc-100
+                      ">
+                        File Ingest Folders
+                      </h3>
+                      <p className="
+                        mt-1 text-xs text-zinc-500
+
+                        dark:text-zinc-400
+                      ">
+                        Dropped local files will be analyzed by the chat model, routed into the best matching configured folder, and appended to a dated note.
+                      </p>
+                    </div>
+                  </div>
+                  <FileIngestTargetsEditor
+                    value={getStringValue('file_ingest_targets')}
+                    onChange={(nextValue) => setValue('file_ingest_targets', nextValue)}
+                  />
+                </div>
               ) : (
                 <>
                   <div className="cybercat-panel p-5">

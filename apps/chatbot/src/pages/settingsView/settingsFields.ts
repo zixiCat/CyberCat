@@ -26,6 +26,16 @@ export const FEATURE_FIELDS: SettingsField[] = [
     description:
       'Turns on the Bilibili settings page, QR login flow, and backend handlers. Leave this off to keep the feature dormant.',
   },
+  {
+    key: 'feature_file_ingest_enabled',
+    label: 'Enable file ingest',
+    placeholder: '',
+    required: false,
+    secret: false,
+    control: 'switch',
+    description:
+      'Turns on native file-drop ingest, the archive folder settings page, and backend handlers. Dropped local files will be organized and routed to your configured folders.',
+  },
 ];
 
 export const SETTINGS_FIELDS: SettingsField[] = [

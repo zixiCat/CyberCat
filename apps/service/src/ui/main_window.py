@@ -1,6 +1,7 @@
 import ctypes
 import os
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import QEvent, QRect, QSettings, QUrl, Qt
 from PySide6.QtGui import QCursor
@@ -37,7 +38,10 @@ class MainWindow(QMainWindow):
         self._restore_window_geometry()
 
         self.browser = QWebEngineView()
+        self.browser.setAcceptDrops(False)
+        self.browser.installEventFilter(self)
         self.setCentralWidget(self.browser)
+        self.setAcceptDrops(True)
 
         # Setup QWebChannel
         self.channel = QWebChannel()
@@ -85,6 +89,28 @@ class MainWindow(QMainWindow):
     def moveEvent(self, event):
         self._persist_window_geometry()
         super().moveEvent(event)
+
+    def eventFilter(self, watched, event):
+        if watched is self.browser and event.type() in {
+            QEvent.DragEnter,
+            QEvent.DragMove,
+            QEvent.Drop,
+        }:
+            if event.type() in {QEvent.DragEnter, QEvent.DragMove}:
+                self._handle_file_drag_event(event)
+            else:
+                self._handle_file_drop_event(event)
+            return event.isAccepted()
+        return super().eventFilter(watched, event)
+
+    def dragEnterEvent(self, event):
+        self._handle_file_drag_event(event)
+
+    def dragMoveEvent(self, event):
+        self._handle_file_drag_event(event)
+
+    def dropEvent(self, event):
+        self._handle_file_drop_event(event)
 
     def resizeEvent(self, event):
         if not self.isMaximized() and not self.isMinimized():
@@ -213,3 +239,46 @@ class MainWindow(QMainWindow):
         )
 
         self._win32_caption_applied = True
+
+    def _handle_file_drag_event(self, event):
+        if self._can_accept_file_drop(event):
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+    def _handle_file_drop_event(self, event):
+        if not self._can_accept_file_drop(event):
+            event.ignore()
+            return
+
+        paths = self._extract_local_file_paths(event.mimeData().urls())
+        if not paths:
+            event.ignore()
+            return
+
+        self.backend.handle_native_file_drop(paths)
+        event.acceptProposedAction()
+
+    def _can_accept_file_drop(self, event) -> bool:
+        if not self.backend.can_accept_file_ingest():
+            return False
+        mime_data = event.mimeData()
+        return bool(
+            mime_data and mime_data.hasUrls() and self._extract_local_file_paths(mime_data.urls())
+        )
+
+    def _extract_local_file_paths(self, urls) -> list[str]:
+        file_paths: list[str] = []
+        for url in urls or []:
+            if not url.isLocalFile():
+                continue
+
+            local_path = url.toLocalFile()
+            if not local_path:
+                continue
+
+            path = Path(local_path)
+            if path.is_file():
+                file_paths.append(str(path.resolve()))
+
+        return file_paths

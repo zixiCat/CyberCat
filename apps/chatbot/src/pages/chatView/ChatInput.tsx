@@ -2,6 +2,7 @@ import { Input } from 'antd';
 import { Brain, Send } from 'lucide-react';
 import { useSetState } from 'react-use';
 
+import { FileIngestDropPanel } from './FileIngestDropPanel';
 import { useChatUiStore } from './chatUiStore';
 
 interface ChatInputProps {
@@ -16,6 +17,7 @@ export const ChatInput = ({
   setThinkingEnabled,
 }: ChatInputProps) => {
   const isTaskRunning = useChatUiStore((state) => state.isTaskRunning);
+  const fileIngestEnabled = useChatUiStore((state) => state.fileIngestEnabled);
   const thinkingEnabled = useChatUiStore((state) => state.thinkingEnabled);
   const thinkingSupported = useChatUiStore((state) => state.thinkingSupported);
   const [{ inputText }, setState] = useSetState({ inputText: '' });
@@ -42,6 +44,8 @@ export const ChatInput = ({
         dark:border-zinc-800
       "
     >
+      <FileIngestDropPanel />
+
       <div
         className="
           rounded-xl border border-zinc-200 bg-white py-2 shadow-sm
@@ -52,7 +56,11 @@ export const ChatInput = ({
         <Input.TextArea
           id={inputId}
           placeholder={
-            isTaskRunning ? 'AI is thinking...' : 'Type a message… (Shift+Enter for newline)'
+            isTaskRunning
+              ? 'AI is thinking...'
+              : fileIngestEnabled
+                ? 'Type a message or drop local files into the window… (Shift+Enter for newline)'
+                : 'Type a message… (Shift+Enter for newline)'
           }
           autoSize={{ minRows: 3, maxRows: 6 }}
           variant="borderless"

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import { loadBackendJson } from '../backendShared';
+import { parseConfiguredFileIngestTargets } from '../fileIngestTargets';
 import {
   buildSessionHistory,
   isThinkingSupportedForModel,
@@ -91,11 +92,17 @@ export const ChatView = () => {
       const modelName = typeof settings.openai_model === 'string' ? settings.openai_model : '';
       const storedRandomVoicePool = parseStoredVoicePool(settings.random_voice_pool);
       const supported = isThinkingSupportedForModel(modelName);
+      const fileIngestTargets = parseConfiguredFileIngestTargets(settings.file_ingest_targets);
+      const fileIngestEnabled = Boolean(
+        settings.feature_file_ingest_enabled && backend.start_file_ingest,
+      );
 
       setUiState({
         voiceOptions: parsedVoiceOptions,
         selectedVoice: activeVoice.voice || 'auto',
         randomVoicePool: storedRandomVoicePool,
+        fileIngestEnabled,
+        fileIngestTargets,
         thinkingSupported: supported,
         thinkingEnabled: supported && Boolean(settings[THINKING_FIELD_KEY]),
       });

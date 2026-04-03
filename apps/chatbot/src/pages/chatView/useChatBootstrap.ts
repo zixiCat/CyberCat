@@ -10,7 +10,15 @@ import {
 } from './chatShared';
 import { useChatSessionStore } from './chatSessionStore';
 import { useChatUiStore } from './chatUiStore';
-import { ChatBackendSignalHandlers, ChunkSegment, PromptOption, Session, Task } from './types';
+import {
+  ChatBackendSignalHandlers,
+  ChunkSegment,
+  FileIngestResult,
+  FileIngestStartPayload,
+  PromptOption,
+  Session,
+  Task,
+} from './types';
 
 const ZERO_DELAY_MS = 0;
 const ZERO_PROMPTS = 0;
@@ -113,6 +121,48 @@ export const useChatBootstrap = ({
         onTaskFinished: () => {
           useChatUiStore.getState().setUiState({ isTaskRunning: false });
           finalizePendingSegments();
+        },
+        onFileIngestStarted: (payloadJson: string) => {
+          try {
+            const payload = parseBackendJson<FileIngestStartPayload>(
+              payloadJson,
+              'File ingest start',
+            );
+            useChatUiStore.getState().setUiState({
+              isFileIngestRunning: true,
+              pendingFileIngestSourceCount: Math.max(0, payload.sourceCount || 0),
+              lastFileIngestResult: null,
+            });
+          } catch (error) {
+            console.error('Failed to parse file ingest start payload:', error);
+            useChatUiStore.getState().setUiState({
+              isFileIngestRunning: true,
+              pendingFileIngestSourceCount: 0,
+              lastFileIngestResult: null,
+            });
+          }
+        },
+        onFileIngestFinished: (payloadJson: string) => {
+          try {
+            const result = parseBackendJson<FileIngestResult>(payloadJson, 'File ingest result');
+            useChatUiStore.getState().setUiState({
+              isFileIngestRunning: false,
+              pendingFileIngestSourceCount: 0,
+              lastFileIngestResult: result,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Invalid file ingest result.';
+            console.error('Failed to parse file ingest result payload:', error);
+            useChatUiStore.getState().setUiState({
+              isFileIngestRunning: false,
+              pendingFileIngestSourceCount: 0,
+              lastFileIngestResult: {
+                ok: false,
+                jobId: '',
+                error: message,
+              },
+            });
+          }
         },
         onWindowStateChanged: (maximized: boolean) => {
           useChatUiStore.getState().setUiState({ isWindowMaximized: Boolean(maximized) });

@@ -11,12 +11,120 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from utils.file_ingest_archive import normalize_file_ingest_folder_path
+
+DEFAULT_FILE_INGEST_FOLDER = "inbox"
+DEFAULT_FILE_INGEST_PURPOSE = (
+    "General knowledge inbox. Route dropped material here when it does not fit a more specific "
+    "archive folder."
+)
+LEGACY_FILE_INGEST_TARGET_FILE_KEY = "file_ingest_target_file"
+LEGACY_FILE_INGEST_TARGET_PURPOSE_KEY = "file_ingest_target_purpose"
+
+
+def _default_file_ingest_targets_json(
+    folder_path: str | None = None,
+    purpose: str | None = None,
+) -> str:
+    target_folder = _derive_legacy_file_ingest_folder(folder_path)
+    target_purpose = str(purpose or "").strip() or DEFAULT_FILE_INGEST_PURPOSE
+    return json.dumps(
+        [
+            {
+                "id": "default-inbox",
+                "folderPath": target_folder,
+                "purpose": target_purpose,
+            }
+        ],
+        ensure_ascii=False,
+    )
+
+
+def _derive_legacy_file_ingest_folder(raw_path: Any) -> str:
+    cleaned = str(raw_path or "").strip().replace("\\", "/")
+    if not cleaned:
+        return DEFAULT_FILE_INGEST_FOLDER
+
+    candidate = Path(cleaned)
+    if candidate.is_absolute():
+        if candidate.suffix:
+            return candidate.parent.as_posix()
+        return candidate.as_posix()
+
+    parts = [part for part in candidate.parts if part not in {"", ".", ".."}]
+    if not parts:
+        return DEFAULT_FILE_INGEST_FOLDER
+
+    last_segment = parts[-1]
+    if candidate.suffix:
+        folder_parts = parts[:-1]
+        if folder_parts:
+            return Path(*folder_parts).as_posix()
+        return Path(last_segment).stem or DEFAULT_FILE_INGEST_FOLDER
+
+    return Path(*parts).as_posix()
+
+
+def _normalize_file_ingest_targets_json(raw_value: Any) -> str:
+    if raw_value is None:
+        return _default_file_ingest_targets_json()
+
+    payload: Any = raw_value
+    if isinstance(raw_value, str):
+        stripped = raw_value.strip()
+        if not stripped:
+            return _default_file_ingest_targets_json()
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise ValueError("File ingest folders must be valid JSON.") from exc
+
+    if not isinstance(payload, list):
+        raise ValueError("File ingest folders must be saved as a list.")
+
+    normalized_targets: list[dict[str, str]] = []
+    seen_paths: set[str] = set()
+
+    for index, item in enumerate(payload, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"File ingest folder #{index} is invalid.")
+
+        raw_folder_path = str(item.get("folderPath") or "").strip()
+        if not raw_folder_path:
+            raise ValueError(f"File ingest folder #{index} is missing a folder path.")
+
+        try:
+            folder_path = normalize_file_ingest_folder_path(raw_folder_path)
+        except ValueError as exc:
+            raise ValueError(f"File ingest folder #{index}: {exc}") from exc
+
+        dedupe_key = folder_path.lower()
+        if dedupe_key in seen_paths:
+            raise ValueError(f"Duplicate file ingest folder target: {folder_path}")
+
+        normalized_targets.append(
+            {
+                "id": str(item.get("id") or "").strip() or f"file-ingest-{uuid.uuid4().hex[:8]}",
+                "folderPath": folder_path,
+                "purpose": str(item.get("purpose") or "").strip() or DEFAULT_FILE_INGEST_PURPOSE,
+            }
+        )
+        seen_paths.add(dedupe_key)
+
+    if not normalized_targets:
+        raise ValueError("At least one file ingest folder is required.")
+
+    return json.dumps(normalized_targets, ensure_ascii=False)
+
+
 # All recognised setting keys with their env-var names and defaults.
 _FIELDS: dict[str, tuple[str, Any]] = {
     # key            -> (ENV_VAR_NAME, default_value)
     "feature_bilibili_enabled": ("FEATURE_BILIBILI_ENABLED", False),
+    "feature_file_ingest_enabled": ("FEATURE_FILE_INGEST_ENABLED", False),
     "bilibili_cookie": ("BILIBILI_COOKIE", ""),
     "bilibili_url": ("BILIBILI_URL", ""),
+    "file_ingest_targets": ("FILE_INGEST_TARGETS", _default_file_ingest_targets_json()),
     "qwen_api_key": ("QWEN_API_KEY", ""),
     "qwen_asr_base_url": (
         "QWEN_ASR_BASE_URL",
@@ -35,10 +143,11 @@ _FIELDS: dict[str, tuple[str, Any]] = {
 
 FEATURE_FIELD_KEYS: dict[str, str] = {
     "bilibili": "feature_bilibili_enabled",
+    "file_ingest": "feature_file_ingest_enabled",
 }
 
 REQUIRED_KEYS = ["qwen_api_key", "openai_api_key", "openai_base_url", "openai_model"]
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 DEFAULT_PROFILE_ID = "default"
 DEFAULT_PROFILE_NAME = "Default"
 LOCKED_QWEN_TTS_MODEL = "qwen-tts-latest"
@@ -66,6 +175,14 @@ def _default_settings() -> dict[str, Any]:
 
     if os.getenv("FEATURE_BILIBILI_ENABLED") is None and _has_legacy_bilibili_settings(settings):
         settings["feature_bilibili_enabled"] = True
+
+    if os.getenv("FILE_INGEST_TARGETS") is None and (
+        os.getenv("FILE_INGEST_TARGET_FILE") or os.getenv("FILE_INGEST_TARGET_PURPOSE")
+    ):
+        settings["file_ingest_targets"] = _default_file_ingest_targets_json(
+            os.getenv("FILE_INGEST_TARGET_FILE"),
+            os.getenv("FILE_INGEST_TARGET_PURPOSE"),
+        )
 
     return settings
 
@@ -120,6 +237,9 @@ class ConfigService:
         active_settings = self._active_settings()
         for key, value in updates.items():
             if key in _FIELDS:
+                if key == "file_ingest_targets":
+                    active_settings[key] = _normalize_file_ingest_targets_json(value)
+                    continue
                 active_settings[key] = self._coerce_setting_value(key, value, _FIELDS[key][1])
 
         self._persist()
@@ -323,6 +443,18 @@ class ConfigService:
                 saved_settings
             ):
                 merged["feature_bilibili_enabled"] = True
+
+            if (
+                "file_ingest_targets" not in saved_settings
+                or not str(saved_settings.get("file_ingest_targets") or "").strip()
+            ) and (
+                saved_settings.get(LEGACY_FILE_INGEST_TARGET_FILE_KEY)
+                or saved_settings.get(LEGACY_FILE_INGEST_TARGET_PURPOSE_KEY)
+            ):
+                merged["file_ingest_targets"] = _default_file_ingest_targets_json(
+                    saved_settings.get(LEGACY_FILE_INGEST_TARGET_FILE_KEY),
+                    saved_settings.get(LEGACY_FILE_INGEST_TARGET_PURPOSE_KEY),
+                )
 
         return merged
 

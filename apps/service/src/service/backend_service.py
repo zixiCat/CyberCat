@@ -25,6 +25,7 @@ from service.task_service import task_service
 from utils.markdown_text import markdown_to_plain_text_single_line
 
 BILIBILI_FEATURE_DISABLED_ERROR = "Bilibili is disabled. Enable it in Settings > Features."
+FILE_INGEST_FEATURE_DISABLED_ERROR = "File ingest is disabled. Enable it in Settings > Features."
 
 
 def _bilibili_disabled_status() -> str:
@@ -44,6 +45,10 @@ def _bilibili_disabled_status() -> str:
 
 def _bilibili_disabled_result() -> str:
     return json.dumps({"ok": False, "error": BILIBILI_FEATURE_DISABLED_ERROR})
+
+
+def _file_ingest_disabled_result() -> str:
+    return json.dumps({"ok": False, "error": FILE_INGEST_FEATURE_DISABLED_ERROR})
 
 
 def _reload_runtime_settings() -> None:
@@ -75,6 +80,10 @@ class BackendService(QObject):
 
     # ── Danmu signal ──────────────────────────────────────────────
     show_danmu = Signal(str)
+
+    # ── File ingest signals ───────────────────────────────────────
+    file_ingest_started = Signal(str)
+    file_ingest_finished = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -163,6 +172,26 @@ class BackendService(QObject):
         from service.backend.bilibili_handler import poll_bilibili_qr_login
 
         return poll_bilibili_qr_login(session_id)
+
+    # ── File ingest ───────────────────────────────────────────────
+
+    def can_accept_file_ingest(self) -> bool:
+        return config_service.is_feature_enabled("file_ingest")
+
+    def handle_native_file_drop(self, paths: list[str]) -> str:
+        return self._start_file_ingest(paths)
+
+    @Slot(str, result=str)
+    def start_file_ingest(self, paths_json: str) -> str:
+        try:
+            payload = json.loads(paths_json)
+        except json.JSONDecodeError:
+            return json.dumps({"ok": False, "error": "Invalid file ingest payload."})
+
+        if not isinstance(payload, list):
+            return json.dumps({"ok": False, "error": "File ingest payload must be a list."})
+
+        return self._start_file_ingest(payload)
 
     # ── Settings profiles ─────────────────────────────────────────
 
@@ -329,3 +358,19 @@ class BackendService(QObject):
     def _on_segment_finished(self, segment_id: int, _text: str) -> None:
         """TaskService emits (id, text) but the frontend only expects (id)."""
         self.segment_finished.emit(segment_id)
+
+    def _start_file_ingest(self, raw_paths: list[str]) -> str:
+        if not config_service.is_feature_enabled("file_ingest"):
+            return _file_ingest_disabled_result()
+
+        from service.backend.file_ingest_handler import start_file_ingest
+
+        return start_file_ingest(
+            [str(path) for path in raw_paths],
+            on_started=lambda payload: self.file_ingest_started.emit(
+                json.dumps(payload, ensure_ascii=False)
+            ),
+            on_finished=lambda payload: self.file_ingest_finished.emit(
+                json.dumps(payload, ensure_ascii=False)
+            ),
+        )

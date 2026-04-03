@@ -81,6 +81,33 @@ export interface BilibiliQrLoginResult {
   error?: string;
 }
 
+export interface FileIngestStartPayload {
+  ok: boolean;
+  jobId: string;
+  sourceCount: number;
+  files: string[];
+  targetFolders: string[];
+}
+
+export interface FileIngestOutputSummary {
+  folderPath: string;
+  noteRelativePath: string;
+  purpose: string;
+}
+
+export interface FileIngestResult {
+  ok: boolean;
+  jobId: string;
+  collectedAt?: string;
+  archiveRelativePath?: string;
+  sourceCount?: number;
+  outputCount?: number;
+  outputs?: FileIngestOutputSummary[];
+  warnings?: string[];
+  summary?: string;
+  error?: string;
+}
+
 export interface SignalHandler<TArgs extends unknown[] = unknown[]> {
   connect: (callback: (...args: TArgs) => void) => void;
 }
@@ -93,6 +120,7 @@ export interface SpeechLabBackendSignalHandlers {
 export interface BackendBridge {
   start_task?: (text: string, systemPrompt?: string, historyJson?: string) => void;
   stop_task?: () => void;
+  start_file_ingest?: (pathsJson: string) => Promise<string>;
   start_tts_test?: (requestId: string, text: string, voice: string) => void;
   start_asr_test_recording?: () => Promise<string>;
   stop_asr_test_recording?: () => Promise<string>;
@@ -132,6 +160,8 @@ export interface BackendBridge {
   task_finished?: SignalHandler<[]>;
   tts_test_started?: SignalHandler<[string]>;
   tts_test_finished?: SignalHandler<[string, string]>;
+  file_ingest_started?: SignalHandler<[string]>;
+  file_ingest_finished?: SignalHandler<[string]>;
   window_state_changed?: SignalHandler<[boolean]>;
   [key: string]: unknown;
 }
@@ -142,6 +172,8 @@ export interface ChatBackendSignalHandlers {
   onSegmentAudioChunk?: (segmentId: number, audioBase64: string) => void;
   onSegmentFinished?: (segmentId: number) => void;
   onTaskFinished?: () => void;
+  onFileIngestStarted?: (payloadJson: string) => void;
+  onFileIngestFinished?: (payloadJson: string) => void;
   onWindowStateChanged?: (maximized: boolean) => void;
 }
 
