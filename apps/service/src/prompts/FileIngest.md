@@ -20,7 +20,6 @@ Rules:
 - Use only configured folderPath values exactly as provided.
 - Respect each folder purpose and organize the output for that purpose.
 - Use multiple outputs only when the dropped material clearly belongs in multiple destination folders.
-- The app controls the final filenames inside each folder. Do not invent filenames.
 - Merge duplicates and remove noise.
 - Split the content into logical headings when multiple topics exist.
 - Keep important factual details, code identifiers, filenames, APIs, and observations from images.

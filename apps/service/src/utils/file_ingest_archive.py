@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +15,7 @@ from utils.output_paths import ensure_output_subdir
 DEFAULT_FILE_INGEST_FOLDER = "inbox"
 FILE_INGEST_ROOT_DIR = "file_ingest"
 ARCHIVE_DIR_NAME = "_archives"
+DATE_NOTE_FILENAME_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[_-](.+))?$")
 
 
 @dataclass(slots=True)
@@ -62,9 +65,38 @@ def resolve_file_ingest_folder(raw_path: str | None) -> tuple[str, Path]:
     return relative_folder_path, folder_path
 
 
-def resolve_file_ingest_note_path(folder_path: str, collected_at: str) -> tuple[str, Path]:
+def normalize_file_ingest_note_suffix(raw_suffix: str | None) -> str:
+    cleaned = str(raw_suffix or "").strip().replace("\\", "/")
+    if not cleaned:
+        return ""
+
+    candidate = cleaned.rsplit("/", 1)[-1]
+    if candidate.lower().endswith(".md"):
+        candidate = candidate[:-3]
+
+    date_match = DATE_NOTE_FILENAME_PATTERN.match(candidate)
+    if date_match:
+        candidate = date_match.group(1) or ""
+
+    if not candidate:
+        return ""
+
+    normalized = unicodedata.normalize("NFKD", candidate)
+    normalized = normalized.encode("ascii", "ignore").decode("ascii")
+    normalized = normalized.strip().lower().replace(" ", "-")
+    normalized = re.sub(r"[^a-z0-9_-]+", "-", normalized)
+    normalized = re.sub(r"-{2,}", "-", normalized)
+    normalized = re.sub(r"_{2,}", "_", normalized)
+    return normalized.strip("-_")
+
+
+def resolve_file_ingest_note_path(
+    folder_path: str,
+    collected_at: str,
+    note_suffix: str | None = None,
+) -> tuple[str, Path]:
     relative_folder_path, resolved_folder_path = resolve_file_ingest_folder(folder_path)
-    note_filename = f"{_parse_created_at(collected_at).strftime('%Y-%m-%d')}.md"
+    note_filename = _build_note_filename(collected_at, note_suffix)
     note_path = resolved_folder_path / note_filename
     note_relative_path = Path(relative_folder_path).joinpath(note_filename).as_posix()
     return note_relative_path, note_path
@@ -118,3 +150,11 @@ def _parse_created_at(created_at: str) -> datetime:
         return datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
     except ValueError:
         return datetime.now()
+
+
+def _build_note_filename(created_at: str, note_suffix: str | None) -> str:
+    date_part = _parse_created_at(created_at).strftime("%Y-%m-%d")
+    suffix = normalize_file_ingest_note_suffix(note_suffix)
+    if suffix:
+        return f"{date_part}_{suffix}.md"
+    return f"{date_part}.md"

@@ -41,7 +41,7 @@ export const FileIngestTargetsEditor = ({ value, onChange }: FileIngestTargetsEd
         type="info"
         showIcon
         message="Folder paths can be relative or absolute."
-        description="Relative paths are resolved under output/file_ingest/. Absolute paths can point anywhere on your machine, for example a OneDrive folder."
+        description="Relative paths are resolved under output/file_ingest/. Absolute paths can point anywhere on your machine, for example a OneDrive folder. Saved files use a date-based markdown name, and the folder purpose can request a suffix like yyyy-mm-dd_sentence.md."
       />
 
       <div className="grid gap-5 rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-5 lg:grid-cols-2 dark:border-white/10 dark:bg-zinc-900/60">
@@ -56,8 +56,9 @@ export const FileIngestTargetsEditor = ({ value, onChange }: FileIngestTargetsEd
         <div>
           <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Purpose Guide</p>
           <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            Describe what belongs in each folder and how the AI should group, summarize, or split
-            the extracted content.
+            Describe what belongs in each folder and the exact saved structure when needed. For
+            example: only keep spoken-English practice sentences, save as yyyy-mm-dd_sentence.md,
+            and output only bullet lines.
           </p>
         </div>
       </div>
@@ -110,7 +111,7 @@ export const FileIngestTargetsEditor = ({ value, onChange }: FileIngestTargetsEd
                 rows={4}
                 value={target.purpose}
                 onChange={(event) => updateTarget(target.id, { purpose: event.target.value })}
-                placeholder="Describe what content belongs in this folder and how AI should organize it."
+                placeholder="Describe what belongs here and, if needed, the exact save format such as yyyy-mm-dd_sentence.md with bullet-only lines."
                 autoComplete="off"
               />
             </div>

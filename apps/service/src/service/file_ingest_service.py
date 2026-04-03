@@ -5,7 +5,9 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+import re
 import threading
+import textwrap
 import time
 import uuid
 from collections.abc import Callable, Sequence
@@ -20,7 +22,9 @@ from service.config_service import DEFAULT_FILE_INGEST_PURPOSE, config_service
 from utils.file_ingest_archive import (
     FileIngestSourceMeta,
     append_file_ingest_entry,
+    get_file_ingest_root,
     normalize_file_ingest_folder_path,
+    normalize_file_ingest_note_suffix,
     resolve_file_ingest_note_path,
     write_file_ingest_archive,
 )
@@ -29,7 +33,13 @@ MAX_FILES_PER_JOB = 8
 MAX_TEXT_CHARS_PER_FILE = 12000
 MAX_IMAGE_BYTES = 4_000_000
 TEXT_SNIFF_BYTES = 4096
+MAX_TARGET_CONTEXT_CHARS_PER_FOLDER = 48000
+MAX_TARGET_CONTEXT_NON_TEXT_EXAMPLES = 6
 DEFAULT_FILE_INGEST_FOLDER = "inbox"
+PURPOSE_NOTE_FILENAME_PATTERN = re.compile(
+    r"\b(?:\d{4}|yyyy)-(?:\d{2}|mm)-(?:\d{2}|dd)[_-]([A-Za-z0-9][A-Za-z0-9 _-]*)\.md\b",
+    re.IGNORECASE,
+)
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 CODE_EXTENSIONS = {
@@ -97,13 +107,30 @@ class RoutedOutput:
     folder_path: str
     purpose: str
     content: str
+    note_suffix: str = ""
 
     def to_result_payload(self, note_relative_path: str) -> dict[str, str]:
-        return {
+        payload = {
             "folderPath": self.folder_path,
             "noteRelativePath": note_relative_path,
             "purpose": self.purpose,
         }
+        if self.note_suffix:
+            payload["noteSuffix"] = self.note_suffix
+        return payload
+
+
+@dataclass(slots=True)
+class TargetFolderContext:
+    folder_path: str
+    purpose: str
+    file_count: int
+    readable_file_count: int
+    skipped_source_file_count: int
+    non_text_file_count: int
+    truncated: bool
+    text_excerpt: str
+    non_text_examples: tuple[str, ...] = ()
 
 
 class FileIngestService:
@@ -195,7 +222,6 @@ class FileIngestService:
         )
 
         collected_at = time.strftime("%Y-%m-%d %H:%M:%S")
-        include_warnings_in_blocks = len(routed_outputs) == 1
         total_appended_bytes = 0
         output_summaries: list[dict[str, str]] = []
         archive_outputs: list[dict[str, Any]] = []
@@ -204,14 +230,9 @@ class FileIngestService:
             note_relative_path, note_path = resolve_file_ingest_note_path(
                 routed_output.folder_path,
                 collected_at,
+                routed_output.note_suffix,
             )
-            target_block = self._build_target_block(
-                collected_at=collected_at,
-                prepared_sources=prepared_sources,
-                result_text=routed_output.content,
-                warnings=warnings if include_warnings_in_blocks else [],
-            )
-            total_appended_bytes += append_file_ingest_entry(note_path, target_block)
+            total_appended_bytes += append_file_ingest_entry(note_path, routed_output.content)
 
             output_payload = routed_output.to_result_payload(note_relative_path)
             output_summaries.append(output_payload)
@@ -343,11 +364,18 @@ class FileIngestService:
         configured_targets: list[FileIngestTarget],
         warnings: list[str],
     ) -> tuple[list[RoutedOutput], str]:
+        target_contexts, target_context_warnings = self._collect_target_folder_contexts(
+            configured_targets,
+            prepared_sources,
+        )
+        warnings.extend(target_context_warnings)
+
         try:
             outputs, routing_summary, routing_warnings = self._request_routed_outputs(
                 prepared_sources,
                 configured_targets=configured_targets,
                 include_image_data=True,
+                target_contexts=target_contexts,
             )
             warnings.extend(routing_warnings)
             return outputs, routing_summary
@@ -361,6 +389,7 @@ class FileIngestService:
                 prepared_sources,
                 configured_targets=configured_targets,
                 include_image_data=False,
+                target_contexts=target_contexts,
             )
             warnings.extend(routing_warnings)
             return outputs, routing_summary
@@ -371,6 +400,7 @@ class FileIngestService:
         *,
         configured_targets: list[FileIngestTarget],
         include_image_data: bool,
+        target_contexts: list[TargetFolderContext],
     ) -> tuple[list[RoutedOutput], str, list[str]]:
         self._validate_model_config()
         client = OpenAI(api_key=self.api_key, base_url=self.base_url)
@@ -384,9 +414,9 @@ class FileIngestService:
 
         user_content: Any
         if has_image_payload:
-            user_content = self._build_multimodal_user_content(prepared_sources)
+            user_content = self._build_multimodal_user_content(prepared_sources, target_contexts)
         else:
-            user_content = self._build_text_only_user_prompt(prepared_sources)
+            user_content = self._build_text_only_user_prompt(prepared_sources, target_contexts)
 
         started_at = time.perf_counter()
         completion = client.chat.completions.create(
@@ -421,13 +451,16 @@ class FileIngestService:
                 "File ingest routing response was not valid JSON. "
                 f"Used {fallback_target.folder_path} instead: {exc}"
             )
-            fallback_text = response_text.strip() or "No content was returned."
+            fallback_text = self._normalize_output_content(
+                response_text.strip() or "No content was returned."
+            )
             return (
                 [
                     RoutedOutput(
                         folder_path=fallback_target.folder_path,
                         purpose=fallback_target.purpose,
                         content=fallback_text,
+                        note_suffix=_extract_note_suffix_from_purpose(fallback_target.purpose),
                     )
                 ],
                 self._build_summary(fallback_text),
@@ -436,7 +469,7 @@ class FileIngestService:
 
         configured_targets_by_path = {target.folder_path: target for target in configured_targets}
         raw_outputs = payload.get("outputs")
-        merged_outputs: dict[str, list[str]] = {}
+        merged_outputs: dict[tuple[str, str], list[str]] = {}
 
         if isinstance(raw_outputs, list):
             for raw_output in raw_outputs:
@@ -460,24 +493,31 @@ class FileIngestService:
                     )
                     continue
 
-                content = str(raw_output.get("content") or "").strip()
+                note_suffix = self._resolve_note_suffix(
+                    raw_output.get("noteSuffix"),
+                    target.purpose,
+                )
+                content = self._normalize_output_content(str(raw_output.get("content") or ""))
                 if not content:
                     continue
 
-                merged_outputs.setdefault(target.folder_path, []).append(content)
+                merged_outputs.setdefault((target.folder_path, note_suffix), []).append(content)
 
         if not merged_outputs:
             warnings.append(
                 "Model did not select a usable target folder. "
                 f"Used {fallback_target.folder_path} instead."
             )
-            fallback_text = response_text.strip() or "No content was returned."
+            fallback_text = self._normalize_output_content(
+                response_text.strip() or "No content was returned."
+            )
             return (
                 [
                     RoutedOutput(
                         folder_path=fallback_target.folder_path,
                         purpose=fallback_target.purpose,
                         content=fallback_text,
+                        note_suffix=_extract_note_suffix_from_purpose(fallback_target.purpose),
                     )
                 ],
                 self._build_summary(fallback_text),
@@ -489,8 +529,9 @@ class FileIngestService:
                 folder_path=folder_path,
                 purpose=configured_targets_by_path[folder_path].purpose,
                 content="\n\n".join(contents).strip(),
+                note_suffix=note_suffix,
             )
-            for folder_path, contents in merged_outputs.items()
+            for (folder_path, note_suffix), contents in merged_outputs.items()
         ]
 
         summary = str(payload.get("summary") or "").strip()
@@ -498,19 +539,190 @@ class FileIngestService:
             summary = self._build_summary(routed_outputs[0].content)
         return routed_outputs, summary, warnings
 
+    def _resolve_note_suffix(self, requested_note_suffix: Any, purpose: str) -> str:
+        if isinstance(requested_note_suffix, str):
+            normalized_note_suffix = normalize_file_ingest_note_suffix(requested_note_suffix)
+            if normalized_note_suffix:
+                return normalized_note_suffix
+        return _extract_note_suffix_from_purpose(purpose)
+
+    def _normalize_output_content(self, result_text: str) -> str:
+        stripped = result_text.strip()
+        if not stripped:
+            return ""
+
+        file_contents_match = re.search(r"(?im)^\s*file contents:\s*$", stripped)
+        if file_contents_match:
+            trailing_content = textwrap.dedent(stripped[file_contents_match.end() :]).strip()
+            if trailing_content:
+                return trailing_content
+
+        return stripped
+
+    def _collect_target_folder_contexts(
+        self,
+        configured_targets: list[FileIngestTarget],
+        prepared_sources: list[PreparedSource],
+    ) -> tuple[list[TargetFolderContext], list[str]]:
+        source_path_keys = {_make_path_key(source.path) for source in prepared_sources}
+        contexts: list[TargetFolderContext] = []
+        warnings: list[str] = []
+
+        for target in configured_targets:
+            target_context, target_warnings = self._collect_target_folder_context(
+                target,
+                source_path_keys,
+            )
+            contexts.append(target_context)
+            warnings.extend(target_warnings)
+
+        return contexts, warnings
+
+    def _collect_target_folder_context(
+        self,
+        target: FileIngestTarget,
+        source_path_keys: set[str],
+    ) -> tuple[TargetFolderContext, list[str]]:
+        warnings: list[str] = []
+        resolved_folder_path = _resolve_configured_target_folder(target.folder_path)
+
+        if not resolved_folder_path.exists():
+            return (
+                TargetFolderContext(
+                    folder_path=target.folder_path,
+                    purpose=target.purpose,
+                    file_count=0,
+                    readable_file_count=0,
+                    skipped_source_file_count=0,
+                    non_text_file_count=0,
+                    truncated=False,
+                    text_excerpt="",
+                ),
+                warnings,
+            )
+
+        if not resolved_folder_path.is_dir():
+            warnings.append(f"Configured file ingest target is not a folder: {target.folder_path}")
+            return (
+                TargetFolderContext(
+                    folder_path=target.folder_path,
+                    purpose=target.purpose,
+                    file_count=0,
+                    readable_file_count=0,
+                    skipped_source_file_count=0,
+                    non_text_file_count=0,
+                    truncated=False,
+                    text_excerpt="",
+                ),
+                warnings,
+            )
+
+        file_paths = sorted(
+            (path for path in resolved_folder_path.rglob("*") if path.is_file()),
+            key=lambda path: path.as_posix().lower(),
+        )
+        readable_blocks: list[str] = []
+        readable_file_count = 0
+        skipped_source_file_count = 0
+        non_text_file_count = 0
+        non_text_examples: list[str] = []
+
+        for file_path in file_paths:
+            if _make_path_key(file_path) in source_path_keys:
+                skipped_source_file_count += 1
+                continue
+
+            kind = self._detect_source_kind(file_path)
+            relative_file_path = _relative_display_path(file_path, resolved_folder_path)
+            if kind not in {"text", "code"}:
+                non_text_file_count += 1
+                if len(non_text_examples) < MAX_TARGET_CONTEXT_NON_TEXT_EXAMPLES:
+                    non_text_examples.append(relative_file_path)
+                continue
+
+            excerpt, truncated, error_message = self._read_text_excerpt(file_path)
+            if error_message:
+                warnings.append(
+                    f"Failed to read existing target file {target.folder_path}/{relative_file_path}: {error_message}"
+                )
+                continue
+            if not excerpt:
+                continue
+
+            size_bytes = 0
+            try:
+                size_bytes = file_path.stat().st_size
+            except OSError:
+                pass
+
+            block_lines = [
+                f"Existing file: {relative_file_path}",
+                f"Kind: {kind}",
+                f"Size: {size_bytes} bytes",
+            ]
+            if truncated:
+                block_lines.append(
+                    "Note: existing file content was truncated for analysis context."
+                )
+            block_lines.extend(["", "Content:", excerpt])
+            readable_blocks.append("\n".join(block_lines))
+            readable_file_count += 1
+
+        folder_text_excerpt = "\n\n---\n\n".join(readable_blocks).strip()
+        folder_truncated = False
+        if folder_text_excerpt:
+            folder_text_excerpt, folder_truncated = _truncate_text(
+                folder_text_excerpt,
+                MAX_TARGET_CONTEXT_CHARS_PER_FOLDER,
+            )
+
+        return (
+            TargetFolderContext(
+                folder_path=target.folder_path,
+                purpose=target.purpose,
+                file_count=len(file_paths),
+                readable_file_count=readable_file_count,
+                skipped_source_file_count=skipped_source_file_count,
+                non_text_file_count=non_text_file_count,
+                truncated=folder_truncated,
+                text_excerpt=folder_text_excerpt,
+                non_text_examples=tuple(non_text_examples),
+            ),
+            warnings,
+        )
+
+    def _read_text_excerpt(self, path: Path) -> tuple[str | None, bool, str | None]:
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            return None, False, str(exc)
+
+        excerpt, truncated = _truncate_text(content, MAX_TEXT_CHARS_PER_FILE)
+        if not excerpt.strip():
+            return None, False, None
+        return excerpt, truncated, None
+
     def _build_multimodal_user_content(
         self,
         prepared_sources: list[PreparedSource],
+        target_contexts: list[TargetFolderContext],
     ) -> list[dict[str, Any]]:
         content: list[dict[str, Any]] = [
             {
                 "type": "text",
                 "text": (
                     "Extract and organize the useful information from these dropped local files. "
-                    "Route the result into the most appropriate configured archive folder or folders."
+                    "Before analyzing the dropped files, review the existing contents of the "
+                    "configured target folders so the result stays consistent with what is "
+                    "already saved there. Route the result into the most appropriate configured "
+                    "archive folder or folders."
                 ),
             }
         ]
+
+        target_context_prompt = _format_target_folder_contexts(target_contexts)
+        if target_context_prompt:
+            content.append({"type": "text", "text": target_context_prompt})
 
         for source in prepared_sources:
             descriptor_lines = [
@@ -539,12 +751,25 @@ class FileIngestService:
 
         return content
 
-    def _build_text_only_user_prompt(self, prepared_sources: list[PreparedSource]) -> str:
+    def _build_text_only_user_prompt(
+        self,
+        prepared_sources: list[PreparedSource],
+        target_contexts: list[TargetFolderContext],
+    ) -> str:
         sections = [
             "Extract and organize the useful information from these dropped local files.",
+            (
+                "Before analyzing the dropped files, review the existing contents of the "
+                "configured target folders so the result stays consistent with what is already "
+                "saved there."
+            ),
             "Route the result into the most appropriate configured archive folder or folders.",
             "",
         ]
+
+        target_context_prompt = _format_target_folder_contexts(target_contexts)
+        if target_context_prompt:
+            sections.extend([target_context_prompt, "", "---", ""])
 
         for source in prepared_sources:
             sections.extend(
@@ -569,27 +794,11 @@ class FileIngestService:
 
         return "\n".join(sections).strip()
 
-    def _build_target_block(
-        self,
-        *,
-        collected_at: str,
-        prepared_sources: list[PreparedSource],
-        result_text: str,
-        warnings: list[str],
-    ) -> str:
-        lines = [f"## Collected at {collected_at}", "", "Source files:"]
-        lines.extend(f"- {source.name}" for source in prepared_sources)
-        lines.extend(["", result_text.strip()])
-
-        if warnings:
-            lines.extend(["", "Warnings:"])
-            lines.extend(f"- {warning}" for warning in warnings)
-
-        return "\n".join(lines).strip()
-
     def _build_summary(self, result_text: str) -> str:
         for line in result_text.splitlines():
             cleaned = line.strip().lstrip("#").strip()
+            cleaned = re.sub(r"^[-*]\s+", "", cleaned)
+            cleaned = re.sub(r"^\d+\.\s+", "", cleaned)
             if cleaned:
                 return cleaned[:220]
         return result_text.strip()[:220]
@@ -704,6 +913,62 @@ def _format_target_options(configured_targets: list[FileIngestTarget]) -> str:
     )
 
 
+def _format_target_folder_contexts(target_contexts: list[TargetFolderContext]) -> str:
+    if not target_contexts:
+        return ""
+
+    sections = [
+        "Existing target folder context is provided below. Use it before analyzing the new dropped files.",
+        "",
+    ]
+
+    for index, target_context in enumerate(target_contexts, start=1):
+        if index > 1:
+            sections.extend(["", "====", ""])
+
+        sections.extend(
+            [
+                f"Target folder: {target_context.folder_path}",
+                f"Purpose: {target_context.purpose}",
+                f"Existing files found: {target_context.file_count}",
+                f"Readable text files loaded as context: {target_context.readable_file_count}",
+            ]
+        )
+
+        if target_context.skipped_source_file_count:
+            sections.append(
+                "Dropped files skipped from folder context: "
+                f"{target_context.skipped_source_file_count}"
+            )
+        if target_context.non_text_file_count:
+            sections.append(
+                "Existing non-text files not expanded into text context: "
+                f"{target_context.non_text_file_count}"
+            )
+            if target_context.non_text_examples:
+                sections.append("Examples: " + ", ".join(target_context.non_text_examples))
+        if target_context.truncated:
+            sections.append("Note: existing folder context was truncated to fit analysis limits.")
+
+        sections.append("")
+        if target_context.text_excerpt:
+            sections.append("Existing readable file contents:")
+            sections.append(target_context.text_excerpt)
+        else:
+            sections.append("No existing readable text content was found in this folder.")
+
+    return "\n".join(sections).strip()
+
+
+def _extract_note_suffix_from_purpose(purpose: str) -> str:
+    matches = PURPOSE_NOTE_FILENAME_PATTERN.findall(str(purpose or ""))
+    for raw_suffix in reversed(matches):
+        normalized_note_suffix = normalize_file_ingest_note_suffix(raw_suffix)
+        if normalized_note_suffix:
+            return normalized_note_suffix
+    return ""
+
+
 def _extract_message_text(content: Any) -> str:
     if isinstance(content, str):
         return content
@@ -764,6 +1029,29 @@ def _looks_like_text(path: Path) -> bool:
         return True
     except UnicodeDecodeError:
         return False
+
+
+def _make_path_key(path: Path) -> str:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = path
+    return str(resolved).lower()
+
+
+def _relative_display_path(path: Path, base_path: Path) -> str:
+    try:
+        return path.relative_to(base_path).as_posix()
+    except ValueError:
+        return path.name
+
+
+def _resolve_configured_target_folder(folder_path: str) -> Path:
+    normalized_folder_path = normalize_file_ingest_folder_path(folder_path)
+    candidate = Path(normalized_folder_path)
+    if candidate.is_absolute():
+        return candidate.resolve(strict=False)
+    return get_file_ingest_root().joinpath(normalized_folder_path)
 
 
 def _truncate_text(text: str, max_chars: int) -> tuple[str, bool]:

@@ -47,7 +47,7 @@ export const FileIngestDropPanel = () => {
         lastFileIngestResult.collectedAt
           ? `Collected at ${lastFileIngestResult.collectedAt}.`
           : null,
-        updatedNotes ? `Updated notes: ${updatedNotes}.` : null,
+        updatedNotes ? `Updated files: ${updatedNotes}.` : null,
         lastFileIngestResult.warnings?.length
           ? `${lastFileIngestResult.warnings.length} warning(s) were recorded.`
           : null,
@@ -87,8 +87,9 @@ export const FileIngestDropPanel = () => {
 
             dark:text-emerald-100/80
           ">
-            CyberCat will organize the extracted content and route it into the best matching
-            configured folder, using relative paths under output/file_ingest/ or any absolute path you configured.
+            CyberCat will organize the extracted content, route it into the best matching
+            configured folder, and save it into date-based markdown files under output/file_ingest/
+            or any absolute path you configured.
           </p>
 
           <p className="
@@ -106,7 +107,7 @@ export const FileIngestDropPanel = () => {
 
             dark:text-emerald-50/70
           ">
-            {purposePreview || 'Set folder purposes in Settings > File Ingest to guide classification and restructuring.'}
+            {purposePreview || 'Set folder purposes in Settings > File Ingest to guide classification, filename suffixes, and saved format.'}
           </p>
         </div>
       </div>
