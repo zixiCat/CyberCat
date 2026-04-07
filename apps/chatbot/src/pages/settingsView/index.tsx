@@ -2,6 +2,7 @@ import { Alert, Button } from 'antd';
 import {
   Archive,
   Blocks,
+  FolderCog,
   Save,
   ScanQrCode,
   Settings,
@@ -14,8 +15,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSetState } from 'react-use';
 
 import { loadBackendJson, waitForBackend } from '../backendShared';
+import { SettingsBackupActionResult, SettingsBackupInfo } from '../chatView/types';
 import { BilibiliAuthPanel } from './BilibiliAuthPanel';
 import { FileIngestTargetsEditor } from './FileIngestTargetsEditor';
+import { SettingsBackupPanel } from './SettingsBackupPanel';
 import { SettingsFieldList } from './SettingsFieldList';
 import {
   BILIBILI_FIELDS,
@@ -41,14 +44,32 @@ interface SaveSettingsResult {
 
 interface SettingsViewState {
   values: Record<string, SettingsValue>;
+  backupInfo: SettingsBackupInfo | null;
   saving: boolean;
+  backingUp: boolean;
+  restoring: boolean;
   message: SettingsMessage | null;
   revealedKeys: Set<string>;
-  activeSection: 'features' | 'ai' | 'bilibili' | 'fileIngest' | 'speech';
+  activeSection: 'general' | 'features' | 'ai' | 'bilibili' | 'fileIngest' | 'speech';
 }
 
 const loadSettingsValues = async () =>
   loadBackendJson<Record<string, SettingsValue>>(() => window.backend?.get_settings?.(), 'Settings');
+
+const loadSettingsBackupInfo = async () => {
+  if (!window.backend?.get_settings_backup_info) {
+    return null;
+  }
+
+  return loadBackendJson<SettingsBackupInfo>(
+    () => window.backend?.get_settings_backup_info?.(),
+    'Settings storage',
+  );
+};
+
+const loadSettingsSnapshot = async () => {
+  return Promise.all([loadSettingsValues(), loadSettingsBackupInfo()]);
+};
 
 interface SettingsViewProps {
   onSaved?: () => void;
@@ -59,12 +80,16 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
   const location = useLocation();
   const [state, setState] = useSetState<SettingsViewState>({
     values: {},
+    backupInfo: null,
     saving: false,
+    backingUp: false,
+    restoring: false,
     message: null,
     revealedKeys: new Set<string>(),
-    activeSection: 'ai',
+    activeSection: 'general',
   });
-  const { values, saving, message, revealedKeys, activeSection } = state;
+  const { values, backupInfo, saving, backingUp, restoring, message, revealedKeys, activeSection } =
+    state;
   const backgroundLocation = location.state?.backgroundLocation;
   const bilibiliEnabled = Boolean(values.feature_bilibili_enabled);
   const fileIngestEnabled = Boolean(values.feature_file_ingest_enabled);
@@ -76,7 +101,9 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
         : activeSection;
 
   const sectionTitle =
-    resolvedActiveSection === 'features'
+    resolvedActiveSection === 'general'
+      ? 'General'
+      : resolvedActiveSection === 'features'
       ? 'Features'
       : resolvedActiveSection === 'ai'
         ? 'AI & APIs'
@@ -87,7 +114,9 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
             : 'Speech Tools';
 
   const sectionDescription =
-    resolvedActiveSection === 'features'
+    resolvedActiveSection === 'general'
+      ? 'Manage the local settings file and move settings between machines.'
+      : resolvedActiveSection === 'features'
       ? 'Turn optional modules on only when you want them available.'
       : resolvedActiveSection === 'ai'
         ? 'Set the providers and credentials the assistant depends on.'
@@ -97,9 +126,9 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
             ? 'Choose one or more archive folders with relative or absolute paths, then describe what each folder should collect before CyberCat appends dated notes inside them.'
             : 'Tune recognition terms and run quick speech checks without leaving the page.';
 
-  const refreshSettingsValues = async () => {
-    const nextValues = await loadSettingsValues();
-    setState({ values: nextValues });
+  const refreshSettingsSnapshot = async () => {
+    const [nextValues, nextBackupInfo] = await loadSettingsSnapshot();
+    setState({ values: nextValues, backupInfo: nextBackupInfo });
   };
 
   const handleClose = () => {
@@ -125,9 +154,9 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
       }
 
       try {
-        const nextValues = await loadSettingsValues();
+        const [nextValues, nextBackupInfo] = await loadSettingsSnapshot();
         if (!cancelled) {
-          setState({ values: nextValues });
+          setState({ values: nextValues, backupInfo: nextBackupInfo });
         }
       } catch {
         // ignore initial load failures and allow the user to retry via actions
@@ -166,6 +195,86 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
       setState({ message: { type: 'error', text: msg } });
     } finally {
       setState({ saving: false });
+    }
+  };
+
+  const handleBackup = async () => {
+    if (!window.backend?.backup_settings) return;
+    setState({ backingUp: true, message: null });
+
+    try {
+      const result = await loadBackendJson<SettingsBackupActionResult>(
+        () => window.backend?.backup_settings?.(),
+        'Back up settings',
+      );
+
+      if (result.cancelled) {
+        return;
+      }
+
+      if (result.ok) {
+        const backupPathText = result.backupPath ? ` Saved to ${result.backupPath}.` : '';
+        setState({
+          message: {
+            type: 'success',
+            text: `Settings backed up.${backupPathText}`,
+          },
+          backupInfo: result.info ?? backupInfo,
+        });
+      } else {
+        setState({
+          message: {
+            type: 'error',
+            text: result.error || 'Failed to back up settings.',
+          },
+        });
+      }
+    } catch (error: unknown) {
+      const text = error instanceof Error ? error.message : 'Failed to back up settings.';
+      setState({ message: { type: 'error', text } });
+    } finally {
+      setState({ backingUp: false });
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!window.backend?.restore_settings) return;
+    setState({ restoring: true, message: null });
+
+    try {
+      const result = await loadBackendJson<SettingsBackupActionResult>(
+        () => window.backend?.restore_settings?.(),
+        'Restore settings',
+      );
+
+      if (result.cancelled) {
+        return;
+      }
+
+      if (result.ok) {
+        await refreshSettingsSnapshot();
+        const snapshotText = result.safetyBackupPath
+          ? ` A safety snapshot was saved to ${result.safetyBackupPath}.`
+          : '';
+        setState({
+          message: {
+            type: 'success',
+            text: `Settings restored.${snapshotText}`,
+          },
+        });
+      } else {
+        setState({
+          message: {
+            type: 'error',
+            text: result.error || 'Failed to restore settings.',
+          },
+        });
+      }
+    } catch (error: unknown) {
+      const text = error instanceof Error ? error.message : 'Failed to restore settings.';
+      setState({ message: { type: 'error', text } });
+    } finally {
+      setState({ restoring: false });
     }
   };
 
@@ -270,6 +379,38 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
             </div>
 
             <nav className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setState({ activeSection: 'general' })}
+                className={`
+                  cybercat-nav-item
+
+                  ${
+                  resolvedActiveSection === 'general'
+                    ? `
+                      cybercat-nav-item-active text-zinc-900
+
+                      dark:text-zinc-100
+                    `
+                    : `
+                      text-zinc-600
+
+                      hover:border-zinc-200 hover:bg-white hover:text-zinc-900
+
+                      dark:text-zinc-300
+
+                      dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+                    `
+                }
+                `}
+              >
+                <FolderCog size={16} />
+                <span>
+                  <span className="block text-sm font-medium">General</span>
+                  <span className="block text-xs opacity-70">Backup and restore</span>
+                </span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setState({ activeSection: 'features' })}
@@ -495,7 +636,15 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                 />
               )}
 
-              {resolvedActiveSection === 'features' ? (
+              {resolvedActiveSection === 'general' ? (
+                <SettingsBackupPanel
+                  info={backupInfo}
+                  backupBusy={backingUp}
+                  restoreBusy={restoring}
+                  onBackup={handleBackup}
+                  onRestore={handleRestore}
+                />
+              ) : resolvedActiveSection === 'features' ? (
                 <div className="cybercat-panel p-5">
                   <div className="mb-5 flex items-start justify-between gap-3">
                     <div>
@@ -586,7 +735,7 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                     />
                   </div>
 
-                  <BilibiliAuthPanel onCookieSaved={refreshSettingsValues} />
+                  <BilibiliAuthPanel onCookieSaved={refreshSettingsSnapshot} />
                 </>
               ) : resolvedActiveSection === 'fileIngest' ? (
                 <div className="cybercat-panel p-5">

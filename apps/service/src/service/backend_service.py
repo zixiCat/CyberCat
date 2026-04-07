@@ -12,6 +12,11 @@ from constants.tts import get_voice_options
 from service.backend.asr_handler import start_asr_test_recording, stop_asr_test_recording
 from service.backend.audio_handler import get_audio_file, save_audio_chunks
 from service.backend.prompt_handler import get_available_prompts, get_prompt_content
+from service.backend.settings_backup_handler import (
+    backup_settings,
+    get_settings_backup_info,
+    restore_settings,
+)
 from service.backend.session_handler import (
     delete_session,
     load_sessions,
@@ -141,6 +146,30 @@ class BackendService(QObject):
             config_service.save(updates)
             _reload_runtime_settings()
             return json.dumps({"ok": True})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)})
+
+    @Slot(result=str)
+    def get_settings_backup_info(self) -> str:
+        try:
+            return json.dumps(get_settings_backup_info())
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)})
+
+    @Slot(result=str)
+    def backup_settings(self) -> str:
+        try:
+            return json.dumps(backup_settings())
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)})
+
+    @Slot(result=str)
+    def restore_settings(self) -> str:
+        try:
+            result = restore_settings()
+            if result.get("ok"):
+                _reload_runtime_settings()
+            return json.dumps(result)
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc)})
 

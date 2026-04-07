@@ -55,6 +55,26 @@ export interface SettingsProfilesPayload {
   profiles: SettingsProfileSummary[];
 }
 
+export interface SettingsBackupInfo {
+  configPath: string;
+  configDirectory: string;
+  configExists: boolean;
+  lastModifiedAt: string | null;
+  profileCount: number;
+  activeProfileId: string;
+  activeProfileName: string;
+}
+
+export interface SettingsBackupActionResult {
+  ok: boolean;
+  cancelled?: boolean;
+  error?: string;
+  backupPath?: string;
+  restoredFrom?: string;
+  safetyBackupPath?: string;
+  info?: SettingsBackupInfo;
+}
+
 export type BilibiliAuthState = 'not_configured' | 'configured' | 'authenticated' | 'logged_out';
 
 export interface BilibiliAuthStatus {
@@ -139,6 +159,9 @@ export interface BackendBridge {
   save_audio_chunks?: (chunksJson: string) => Promise<string>;
   get_settings?: () => Promise<string>;
   save_settings?: (settingsJson: string) => Promise<string>;
+  get_settings_backup_info?: () => Promise<string>;
+  backup_settings?: () => Promise<string>;
+  restore_settings?: () => Promise<string>;
   get_bilibili_auth_status?: () => Promise<string>;
   start_bilibili_qr_login?: () => Promise<string>;
   poll_bilibili_qr_login?: (sessionId: string) => Promise<string>;

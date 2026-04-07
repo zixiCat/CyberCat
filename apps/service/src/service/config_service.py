@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -151,6 +152,9 @@ SCHEMA_VERSION = 4
 DEFAULT_PROFILE_ID = "default"
 DEFAULT_PROFILE_NAME = "Default"
 LOCKED_QWEN_TTS_MODEL = "qwen-tts-latest"
+SETTINGS_BACKUP_SUFFIX = ".json"
+RESTORE_SNAPSHOT_SUFFIX = ".pre-restore"
+TIMESTAMP_FILENAME_FORMAT = "%Y%m%d-%H%M%S"
 
 
 def _config_dir() -> Path:
@@ -280,6 +284,78 @@ class ConfigService:
             "features": self.get_feature_flags(),
         }
 
+    def get_storage_metadata(self) -> dict[str, Any]:
+        path = _config_path()
+        config_exists = path.is_file()
+        last_modified_at: str | None = None
+
+        if config_exists:
+            try:
+                last_modified_at = datetime.fromtimestamp(
+                    path.stat().st_mtime,
+                    tz=timezone.utc,
+                ).isoformat()
+            except OSError:
+                last_modified_at = None
+
+        active_profile = self.get_active_profile()
+        return {
+            "configPath": str(path),
+            "configDirectory": str(path.parent),
+            "configExists": config_exists,
+            "lastModifiedAt": last_modified_at,
+            "profileCount": len(self._profiles),
+            "activeProfileId": active_profile["id"],
+            "activeProfileName": active_profile["name"],
+        }
+
+    def backup_to(self, destination: Path) -> dict[str, Any]:
+        backup_path = destination.expanduser()
+        if not backup_path.suffix:
+            backup_path = backup_path.with_suffix(SETTINGS_BACKUP_SUFFIX)
+
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_text(
+            json.dumps(self._serialize_store(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return {
+            "backupPath": str(backup_path),
+            "info": self.get_storage_metadata(),
+        }
+
+    def restore_from(self, source: Path) -> dict[str, Any]:
+        source_path = source.expanduser()
+        if not source_path.is_file():
+            raise ValueError(f"Backup file not found: {source_path}")
+
+        try:
+            payload = json.loads(source_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError("Backup file is not valid JSON.") from exc
+        except OSError as exc:
+            raise ValueError(f"Unable to read backup file: {exc}") from exc
+
+        if not isinstance(payload, dict):
+            raise ValueError("Backup file must contain a JSON object.")
+        if not self._is_settings_backup_payload(payload):
+            raise ValueError("Selected file is not a CyberCat settings backup.")
+
+        safety_backup_path = self._create_restore_snapshot()
+        config_path = _config_path()
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        self.load()
+        self._persist()
+        return {
+            "restoredFrom": str(source_path),
+            "safetyBackupPath": str(safety_backup_path),
+            "info": self.get_storage_metadata(),
+        }
+
     def get_profiles_summary(self) -> dict[str, Any]:
         return {
             "activeProfileId": self._active_profile_id,
@@ -374,7 +450,11 @@ class ConfigService:
     def _persist(self) -> None:
         path = _config_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
+        payload = self._serialize_store()
+        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    def _serialize_store(self) -> dict[str, Any]:
+        return {
             "version": SCHEMA_VERSION,
             "active_profile_id": self._active_profile_id,
             "profiles": [
@@ -386,7 +466,29 @@ class ConfigService:
                 for profile_id, profile in self._profiles.items()
             ],
         }
-        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    def _is_settings_backup_payload(self, payload: dict[str, Any]) -> bool:
+        if "profiles" in payload:
+            return isinstance(payload.get("profiles"), (dict, list))
+
+        legacy_keys = {
+            LEGACY_FILE_INGEST_TARGET_FILE_KEY,
+            LEGACY_FILE_INGEST_TARGET_PURPOSE_KEY,
+        }
+        return any(key in payload for key in set(_FIELDS) | legacy_keys)
+
+    def _create_restore_snapshot(self) -> Path:
+        config_path = _config_path()
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime(TIMESTAMP_FILENAME_FORMAT)
+        snapshot_path = config_path.with_name(
+            f"{config_path.stem}{RESTORE_SNAPSHOT_SUFFIX}-{timestamp}{config_path.suffix}"
+        )
+        snapshot_path.write_text(
+            json.dumps(self._serialize_store(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return snapshot_path
 
     def _load_profile_store(self, saved: dict[str, Any], default_settings: dict[str, Any]) -> None:
         loaded_profiles: dict[str, dict[str, Any]] = {}
