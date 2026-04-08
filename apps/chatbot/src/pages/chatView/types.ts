@@ -55,6 +55,26 @@ export interface SettingsProfilesPayload {
   profiles: SettingsProfileSummary[];
 }
 
+export interface SettingsBackupInfo {
+  configPath: string;
+  configDirectory: string;
+  configExists: boolean;
+  lastModifiedAt: string | null;
+  profileCount: number;
+  activeProfileId: string;
+  activeProfileName: string;
+}
+
+export interface SettingsBackupActionResult {
+  ok: boolean;
+  cancelled?: boolean;
+  error?: string;
+  backupPath?: string;
+  restoredFrom?: string;
+  safetyBackupPath?: string;
+  info?: SettingsBackupInfo;
+}
+
 export type BilibiliAuthState = 'not_configured' | 'configured' | 'authenticated' | 'logged_out';
 
 export interface BilibiliAuthStatus {
@@ -81,6 +101,33 @@ export interface BilibiliQrLoginResult {
   error?: string;
 }
 
+export interface FileIngestStartPayload {
+  ok: boolean;
+  jobId: string;
+  sourceCount: number;
+  files: string[];
+  targetFolders: string[];
+}
+
+export interface FileIngestOutputSummary {
+  folderPath: string;
+  noteRelativePath: string;
+  purpose: string;
+}
+
+export interface FileIngestResult {
+  ok: boolean;
+  jobId: string;
+  collectedAt?: string;
+  archiveRelativePath?: string;
+  sourceCount?: number;
+  outputCount?: number;
+  outputs?: FileIngestOutputSummary[];
+  warnings?: string[];
+  summary?: string;
+  error?: string;
+}
+
 export interface SignalHandler<TArgs extends unknown[] = unknown[]> {
   connect: (callback: (...args: TArgs) => void) => void;
 }
@@ -93,6 +140,7 @@ export interface SpeechLabBackendSignalHandlers {
 export interface BackendBridge {
   start_task?: (text: string, systemPrompt?: string, historyJson?: string) => void;
   stop_task?: () => void;
+  start_file_ingest?: (pathsJson: string) => Promise<string>;
   start_tts_test?: (requestId: string, text: string, voice: string) => void;
   start_asr_test_recording?: () => Promise<string>;
   stop_asr_test_recording?: () => Promise<string>;
@@ -111,6 +159,9 @@ export interface BackendBridge {
   save_audio_chunks?: (chunksJson: string) => Promise<string>;
   get_settings?: () => Promise<string>;
   save_settings?: (settingsJson: string) => Promise<string>;
+  get_settings_backup_info?: () => Promise<string>;
+  backup_settings?: () => Promise<string>;
+  restore_settings?: () => Promise<string>;
   get_bilibili_auth_status?: () => Promise<string>;
   start_bilibili_qr_login?: () => Promise<string>;
   poll_bilibili_qr_login?: (sessionId: string) => Promise<string>;
@@ -132,6 +183,8 @@ export interface BackendBridge {
   task_finished?: SignalHandler<[]>;
   tts_test_started?: SignalHandler<[string]>;
   tts_test_finished?: SignalHandler<[string, string]>;
+  file_ingest_started?: SignalHandler<[string]>;
+  file_ingest_finished?: SignalHandler<[string]>;
   window_state_changed?: SignalHandler<[boolean]>;
   [key: string]: unknown;
 }
@@ -142,6 +195,8 @@ export interface ChatBackendSignalHandlers {
   onSegmentAudioChunk?: (segmentId: number, audioBase64: string) => void;
   onSegmentFinished?: (segmentId: number) => void;
   onTaskFinished?: () => void;
+  onFileIngestStarted?: (payloadJson: string) => void;
+  onFileIngestFinished?: (payloadJson: string) => void;
   onWindowStateChanged?: (maximized: boolean) => void;
 }
 

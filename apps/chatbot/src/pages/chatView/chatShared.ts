@@ -44,6 +44,12 @@ export const ensureBackendSignalBindings = (backend: NonNullable<Window['backend
   backend.task_finished?.connect(() => {
     window.cyberCatBackendSignalHandlers?.onTaskFinished?.();
   });
+  backend.file_ingest_started?.connect((payloadJson: string) => {
+    window.cyberCatBackendSignalHandlers?.onFileIngestStarted?.(payloadJson);
+  });
+  backend.file_ingest_finished?.connect((payloadJson: string) => {
+    window.cyberCatBackendSignalHandlers?.onFileIngestFinished?.(payloadJson);
+  });
   backend.window_state_changed?.connect((maximized: boolean) => {
     window.cyberCatBackendSignalHandlers?.onWindowStateChanged?.(maximized);
   });

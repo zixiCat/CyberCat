@@ -21,6 +21,14 @@
 - Do not reintroduce UPX compression for OpenSSL-related binaries.
 - When building from Git Bash on Windows, ensure bundled `libssl-3-x64.dll` and `libcrypto-3-x64.dll` come from Python's DLLs, not Git's `mingw64` directory.
 
+## GitHub Releases
+
+- `gh release upload` only attaches assets. It does not populate or regenerate the release body.
+- Prefer `gh release create ... --generate-notes` when creating a new release.
+- GitHub builds the `What's Changed` section from merged pull request metadata. If the release range is mostly direct commits, generated notes may collapse to only `Full Changelog`.
+- If the release already exists without notes, or generated notes are too sparse, write a short manual summary and apply it with `gh release edit <tag> --notes-file <file>` rather than leaving the body empty.
+- Verify the published release page has a non-empty notes body after uploading assets.
+
 ## Integration Notes
 
 - The service uses `openai-agents` with DashScope-compatible client wiring for model access.

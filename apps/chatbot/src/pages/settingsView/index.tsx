@@ -1,5 +1,8 @@
 import { Alert, Button } from 'antd';
 import {
+  Archive,
+  Blocks,
+  FolderCog,
   Save,
   ScanQrCode,
   Settings,
@@ -12,10 +15,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSetState } from 'react-use';
 
 import { loadBackendJson, waitForBackend } from '../backendShared';
+import { SettingsBackupActionResult, SettingsBackupInfo } from '../chatView/types';
 import { BilibiliAuthPanel } from './BilibiliAuthPanel';
+import { FileIngestTargetsEditor } from './FileIngestTargetsEditor';
+import { SettingsBackupPanel } from './SettingsBackupPanel';
 import { SettingsFieldList } from './SettingsFieldList';
 import {
   BILIBILI_FIELDS,
+  FEATURE_FIELDS,
   REQUIRED_FIELDS,
   SETTINGS_FIELDS,
   SettingsValue,
@@ -37,14 +44,32 @@ interface SaveSettingsResult {
 
 interface SettingsViewState {
   values: Record<string, SettingsValue>;
+  backupInfo: SettingsBackupInfo | null;
   saving: boolean;
+  backingUp: boolean;
+  restoring: boolean;
   message: SettingsMessage | null;
   revealedKeys: Set<string>;
-  activeSection: 'ai' | 'bilibili' | 'speech';
+  activeSection: 'general' | 'features' | 'ai' | 'bilibili' | 'fileIngest' | 'speech';
 }
 
 const loadSettingsValues = async () =>
   loadBackendJson<Record<string, SettingsValue>>(() => window.backend?.get_settings?.(), 'Settings');
+
+const loadSettingsBackupInfo = async () => {
+  if (!window.backend?.get_settings_backup_info) {
+    return null;
+  }
+
+  return loadBackendJson<SettingsBackupInfo>(
+    () => window.backend?.get_settings_backup_info?.(),
+    'Settings storage',
+  );
+};
+
+const loadSettingsSnapshot = async () => {
+  return Promise.all([loadSettingsValues(), loadSettingsBackupInfo()]);
+};
 
 interface SettingsViewProps {
   onSaved?: () => void;
@@ -55,17 +80,55 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
   const location = useLocation();
   const [state, setState] = useSetState<SettingsViewState>({
     values: {},
+    backupInfo: null,
     saving: false,
+    backingUp: false,
+    restoring: false,
     message: null,
     revealedKeys: new Set<string>(),
-    activeSection: 'ai',
+    activeSection: 'general',
   });
-  const { values, saving, message, revealedKeys, activeSection } = state;
+  const { values, backupInfo, saving, backingUp, restoring, message, revealedKeys, activeSection } =
+    state;
   const backgroundLocation = location.state?.backgroundLocation;
+  const bilibiliEnabled = Boolean(values.feature_bilibili_enabled);
+  const fileIngestEnabled = Boolean(values.feature_file_ingest_enabled);
+  const resolvedActiveSection =
+    !bilibiliEnabled && activeSection === 'bilibili'
+      ? 'features'
+      : !fileIngestEnabled && activeSection === 'fileIngest'
+        ? 'features'
+        : activeSection;
 
-  const refreshSettingsValues = async () => {
-    const nextValues = await loadSettingsValues();
-    setState({ values: nextValues });
+  const sectionTitle =
+    resolvedActiveSection === 'general'
+      ? 'General'
+      : resolvedActiveSection === 'features'
+      ? 'Features'
+      : resolvedActiveSection === 'ai'
+        ? 'AI & APIs'
+        : resolvedActiveSection === 'bilibili'
+          ? 'Bilibili'
+          : resolvedActiveSection === 'fileIngest'
+            ? 'File Ingest'
+            : 'Speech Tools';
+
+  const sectionDescription =
+    resolvedActiveSection === 'general'
+      ? 'Manage the local settings file and move settings between machines.'
+      : resolvedActiveSection === 'features'
+      ? 'Turn optional modules on only when you want them available.'
+      : resolvedActiveSection === 'ai'
+        ? 'Set the providers and credentials the assistant depends on.'
+        : resolvedActiveSection === 'bilibili'
+          ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
+          : resolvedActiveSection === 'fileIngest'
+            ? 'Choose one or more archive folders with relative or absolute paths, then describe what each folder should collect before CyberCat appends dated notes inside them.'
+            : 'Tune recognition terms and run quick speech checks without leaving the page.';
+
+  const refreshSettingsSnapshot = async () => {
+    const [nextValues, nextBackupInfo] = await loadSettingsSnapshot();
+    setState({ values: nextValues, backupInfo: nextBackupInfo });
   };
 
   const handleClose = () => {
@@ -91,9 +154,9 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
       }
 
       try {
-        const nextValues = await loadSettingsValues();
+        const [nextValues, nextBackupInfo] = await loadSettingsSnapshot();
         if (!cancelled) {
-          setState({ values: nextValues });
+          setState({ values: nextValues, backupInfo: nextBackupInfo });
         }
       } catch {
         // ignore initial load failures and allow the user to retry via actions
@@ -132,6 +195,86 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
       setState({ message: { type: 'error', text: msg } });
     } finally {
       setState({ saving: false });
+    }
+  };
+
+  const handleBackup = async () => {
+    if (!window.backend?.backup_settings) return;
+    setState({ backingUp: true, message: null });
+
+    try {
+      const result = await loadBackendJson<SettingsBackupActionResult>(
+        () => window.backend?.backup_settings?.(),
+        'Back up settings',
+      );
+
+      if (result.cancelled) {
+        return;
+      }
+
+      if (result.ok) {
+        const backupPathText = result.backupPath ? ` Saved to ${result.backupPath}.` : '';
+        setState({
+          message: {
+            type: 'success',
+            text: `Settings backed up.${backupPathText}`,
+          },
+          backupInfo: result.info ?? backupInfo,
+        });
+      } else {
+        setState({
+          message: {
+            type: 'error',
+            text: result.error || 'Failed to back up settings.',
+          },
+        });
+      }
+    } catch (error: unknown) {
+      const text = error instanceof Error ? error.message : 'Failed to back up settings.';
+      setState({ message: { type: 'error', text } });
+    } finally {
+      setState({ backingUp: false });
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!window.backend?.restore_settings) return;
+    setState({ restoring: true, message: null });
+
+    try {
+      const result = await loadBackendJson<SettingsBackupActionResult>(
+        () => window.backend?.restore_settings?.(),
+        'Restore settings',
+      );
+
+      if (result.cancelled) {
+        return;
+      }
+
+      if (result.ok) {
+        await refreshSettingsSnapshot();
+        const snapshotText = result.safetyBackupPath
+          ? ` A safety snapshot was saved to ${result.safetyBackupPath}.`
+          : '';
+        setState({
+          message: {
+            type: 'success',
+            text: `Settings restored.${snapshotText}`,
+          },
+        });
+      } else {
+        setState({
+          message: {
+            type: 'error',
+            text: result.error || 'Failed to restore settings.',
+          },
+        });
+      }
+    } catch (error: unknown) {
+      const text = error instanceof Error ? error.message : 'Failed to restore settings.';
+      setState({ message: { type: 'error', text } });
+    } finally {
+      setState({ restoring: false });
     }
   };
 
@@ -238,12 +381,76 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
             <nav className="space-y-2">
               <button
                 type="button"
+                onClick={() => setState({ activeSection: 'general' })}
+                className={`
+                  cybercat-nav-item
+
+                  ${
+                  resolvedActiveSection === 'general'
+                    ? `
+                      cybercat-nav-item-active text-zinc-900
+
+                      dark:text-zinc-100
+                    `
+                    : `
+                      text-zinc-600
+
+                      hover:border-zinc-200 hover:bg-white hover:text-zinc-900
+
+                      dark:text-zinc-300
+
+                      dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+                    `
+                }
+                `}
+              >
+                <FolderCog size={16} />
+                <span>
+                  <span className="block text-sm font-medium">General</span>
+                  <span className="block text-xs opacity-70">Backup and restore</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setState({ activeSection: 'features' })}
+                className={`
+                  cybercat-nav-item
+
+                  ${
+                  resolvedActiveSection === 'features'
+                    ? `
+                      cybercat-nav-item-active text-zinc-900
+
+                      dark:text-zinc-100
+                    `
+                    : `
+                      text-zinc-600
+
+                      hover:border-zinc-200 hover:bg-white hover:text-zinc-900
+
+                      dark:text-zinc-300
+
+                      dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+                    `
+                }
+                `}
+              >
+                <Blocks size={16} />
+                <span>
+                  <span className="block text-sm font-medium">Features</span>
+                  <span className="block text-xs opacity-70">Enable optional modules</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setState({ activeSection: 'ai' })}
                 className={`
                   cybercat-nav-item
 
                   ${
-                  activeSection === 'ai'
+                  resolvedActiveSection === 'ai'
                     ? `
                       cybercat-nav-item-active text-zinc-900
 
@@ -268,37 +475,73 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setState({ activeSection: 'bilibili' })}
-                className={`
-                  cybercat-nav-item
+              {bilibiliEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setState({ activeSection: 'bilibili' })}
+                  className={`
+                    cybercat-nav-item
 
-                  ${
-                  activeSection === 'bilibili'
-                    ? `
-                      cybercat-nav-item-active text-zinc-900
+                    ${
+                    resolvedActiveSection === 'bilibili'
+                      ? `
+                        cybercat-nav-item-active text-zinc-900
 
-                      dark:text-zinc-100
-                    `
-                    : `
-                      text-zinc-600
+                        dark:text-zinc-100
+                      `
+                      : `
+                        text-zinc-600
 
-                      hover:border-zinc-200 hover:bg-white hover:text-zinc-900
+                        hover:border-zinc-200 hover:bg-white hover:text-zinc-900
 
-                      dark:text-zinc-300
+                        dark:text-zinc-300
 
-                      dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-                    `
-                }
-                `}
-              >
-                <ScanQrCode size={16} />
-                <span>
-                  <span className="block text-sm font-medium">Bilibili</span>
-                  <span className="block text-xs opacity-70">Local cookie and QR login</span>
-                </span>
-              </button>
+                        dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+                      `
+                  }
+                  `}
+                >
+                  <ScanQrCode size={16} />
+                  <span>
+                    <span className="block text-sm font-medium">Bilibili</span>
+                    <span className="block text-xs opacity-70">Local cookie and QR login</span>
+                  </span>
+                </button>
+              )}
+
+              {fileIngestEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setState({ activeSection: 'fileIngest' })}
+                  className={`
+                    cybercat-nav-item
+
+                    ${
+                    resolvedActiveSection === 'fileIngest'
+                      ? `
+                        cybercat-nav-item-active text-zinc-900
+
+                        dark:text-zinc-100
+                      `
+                      : `
+                        text-zinc-600
+
+                        hover:border-zinc-200 hover:bg-white hover:text-zinc-900
+
+                        dark:text-zinc-300
+
+                        dark:hover:border-white/10 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+                      `
+                  }
+                  `}
+                >
+                  <Archive size={16} />
+                  <span>
+                    <span className="block text-sm font-medium">File Ingest</span>
+                    <span className="block text-xs opacity-70">Drop local files into notes</span>
+                  </span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -307,7 +550,7 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                   cybercat-nav-item
 
                   ${
-                  activeSection === 'speech'
+                  resolvedActiveSection === 'speech'
                     ? `
                       cybercat-nav-item-active text-zinc-900
 
@@ -364,22 +607,14 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
               dark:text-zinc-100
             ">
-              {activeSection === 'ai'
-                ? 'AI & APIs'
-                : activeSection === 'bilibili'
-                  ? 'Bilibili'
-                  : 'Speech Tools'}
+              {sectionTitle}
             </h2>
             <p className="
               mt-1 text-sm text-zinc-500
 
               dark:text-zinc-400
             ">
-              {activeSection === 'ai'
-                ? 'Set the providers and credentials the assistant depends on.'
-                : activeSection === 'bilibili'
-                  ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
-                  : 'Tune recognition terms and run quick speech checks without leaving the page.'}
+              {sectionDescription}
             </p>
           </div>
 
@@ -401,7 +636,43 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                 />
               )}
 
-              {activeSection === 'ai' ? (
+              {resolvedActiveSection === 'general' ? (
+                <SettingsBackupPanel
+                  info={backupInfo}
+                  backupBusy={backingUp}
+                  restoreBusy={restoring}
+                  onBackup={handleBackup}
+                  onRestore={handleRestore}
+                />
+              ) : resolvedActiveSection === 'features' ? (
+                <div className="cybercat-panel p-5">
+                  <div className="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="
+                        text-sm font-semibold text-zinc-900
+
+                        dark:text-zinc-100
+                      ">
+                        Optional Features
+                      </h3>
+                      <p className="
+                        mt-1 text-xs text-zinc-500
+
+                        dark:text-zinc-400
+                      ">
+                        Disabled features stay hidden and their backend actions remain off.
+                      </p>
+                    </div>
+                  </div>
+                  <SettingsFieldList
+                    fields={FEATURE_FIELDS}
+                    values={values}
+                    revealedKeys={revealedKeys}
+                    onValueChange={setValue}
+                    onToggleReveal={toggleReveal}
+                  />
+                </div>
+              ) : resolvedActiveSection === 'ai' ? (
                 <div className="cybercat-panel p-5">
                   <div className="mb-5 flex items-start justify-between gap-3">
                     <div>
@@ -432,7 +703,7 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                     />
                   </div>
                 </div>
-              ) : activeSection === 'bilibili' ? (
+              ) : resolvedActiveSection === 'bilibili' ? (
                 <>
                   <div className="cybercat-panel p-5">
                     <div className="mb-5 flex items-start justify-between gap-3">
@@ -464,8 +735,33 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                     />
                   </div>
 
-                  <BilibiliAuthPanel onCookieSaved={refreshSettingsValues} />
+                  <BilibiliAuthPanel onCookieSaved={refreshSettingsSnapshot} />
                 </>
+              ) : resolvedActiveSection === 'fileIngest' ? (
+                <div className="cybercat-panel p-5">
+                  <div className="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="
+                        text-sm font-semibold text-zinc-900
+
+                        dark:text-zinc-100
+                      ">
+                        File Ingest Folders
+                      </h3>
+                      <p className="
+                        mt-1 text-xs text-zinc-500
+
+                        dark:text-zinc-400
+                      ">
+                        Dropped local files will be analyzed by the chat model, routed into the best matching configured folder, and appended to a dated note.
+                      </p>
+                    </div>
+                  </div>
+                  <FileIngestTargetsEditor
+                    value={getStringValue('file_ingest_targets')}
+                    onChange={(nextValue) => setValue('file_ingest_targets', nextValue)}
+                  />
+                </div>
               ) : (
                 <>
                   <div className="cybercat-panel p-5">

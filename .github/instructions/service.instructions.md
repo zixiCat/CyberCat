@@ -24,6 +24,7 @@ applyTo: 'apps/service/**'
 - Put constants in `apps/service/src/constants` and avoid magic literals in business logic.
 - Keep prompt templates in `apps/service/src/prompts`; do not inline large prompt text in Python modules.
 - Keep Qt window code in `apps/service/src/ui`.
+- Optional integrations should be controlled by persisted feature flags in `config_service` rather than ad-hoc checks. Keep disabled modules dormant by guarding bridge methods first and lazily importing optional handlers only when the feature is enabled.
 - Write outputs only to the top-level `output` folder.
 - Keep automation and one-off integrations in `apps/service/src/scripts` with clear folder names by source or platform.
 - New script folders that introduce external prerequisites should include a short `README.md` with prerequisites and usage notes.

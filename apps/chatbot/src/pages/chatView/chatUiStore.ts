@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
-import { PromptOption, VoiceOption } from './types';
+import { FileIngestTarget, getDefaultFileIngestTargets } from '../fileIngestTargets';
+import { FileIngestResult, PromptOption, VoiceOption } from './types';
 
 const DEFAULT_CHAT_SCROLL_PADDING_BOTTOM = 240;
 
@@ -14,6 +15,11 @@ interface ChatUiStateData {
   randomVoicePool: string[];
   isWindowMaximized: boolean;
   isTaskRunning: boolean;
+  fileIngestEnabled: boolean;
+  fileIngestTargets: FileIngestTarget[];
+  isFileIngestRunning: boolean;
+  pendingFileIngestSourceCount: number;
+  lastFileIngestResult: FileIngestResult | null;
   autoPlay: boolean;
   thinkingEnabled: boolean;
   thinkingSupported: boolean;
@@ -38,6 +44,11 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   randomVoicePool: [],
   isWindowMaximized: false,
   isTaskRunning: false,
+  fileIngestEnabled: false,
+  fileIngestTargets: getDefaultFileIngestTargets(),
+  isFileIngestRunning: false,
+  pendingFileIngestSourceCount: 0,
+  lastFileIngestResult: null,
   autoPlay: localStorage.getItem('autoPlay') !== 'false',
   thinkingEnabled: false,
   thinkingSupported: false,

@@ -27,6 +27,17 @@ That is all you need. You do not need to install anything else manually.
 - Hear replies with built-in speech playback
 - Use quick keyboard shortcuts for faster interaction
 
+## Bilibili / BBDown
+
+CyberCat includes local Bilibili settings for BBDown workflows:
+
+1. Open CyberCat and go to `Settings -> Bilibili`.
+2. Set the Bilibili URL you want to use, such as a space or favourites link.
+3. Sign in with `QR Login`, or paste an existing BBDown cookie.
+4. Save settings. CyberCat stores the cookie in your active local profile.
+
+For repository helper scripts and other advanced details, see [apps/service/src/scripts/bilibili/README.md](apps/service/src/scripts/bilibili/README.md).
+
 ## Useful Hotkeys
 
 - Hold `z+x` to record voice, then confirm before sending

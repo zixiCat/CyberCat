@@ -1,6 +1,6 @@
 #define AppName "CyberCat"
 #ifndef AppVersion
-  #define AppVersion "0.1.2"
+  #define AppVersion "0.2.0"
 #endif
 #ifndef BundleSourceDir
   #define BundleSourceDir "build\\CyberCat\\bundle\\CyberCat"

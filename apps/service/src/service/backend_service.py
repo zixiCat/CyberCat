@@ -11,12 +11,12 @@ from PySide6.QtCore import QObject, Signal, Slot
 from constants.tts import get_voice_options
 from service.backend.asr_handler import start_asr_test_recording, stop_asr_test_recording
 from service.backend.audio_handler import get_audio_file, save_audio_chunks
-from service.backend.bilibili_handler import (
-    get_bilibili_auth_status,
-    poll_bilibili_qr_login,
-    start_bilibili_qr_login,
-)
 from service.backend.prompt_handler import get_available_prompts, get_prompt_content
+from service.backend.settings_backup_handler import (
+    backup_settings,
+    get_settings_backup_info,
+    restore_settings,
+)
 from service.backend.session_handler import (
     delete_session,
     load_sessions,
@@ -24,9 +24,42 @@ from service.backend.session_handler import (
 )
 from service.backend.tts_handler import run_tts_test
 from service.config_service import config_service
+from service.qwen_service import qwen_service
 from service.qwen_tts_service import qwen_tts_service
 from service.task_service import task_service
 from utils.markdown_text import markdown_to_plain_text_single_line
+
+BILIBILI_FEATURE_DISABLED_ERROR = "Bilibili is disabled. Enable it in Settings > Features."
+FILE_INGEST_FEATURE_DISABLED_ERROR = "File ingest is disabled. Enable it in Settings > Features."
+
+
+def _bilibili_disabled_status() -> str:
+    return json.dumps(
+        {
+            "featureEnabled": False,
+            "configured": False,
+            "state": "not_configured",
+            "remoteChecked": False,
+            "hasSessData": False,
+            "userId": "",
+            "username": "",
+            "expiresAt": None,
+        }
+    )
+
+
+def _bilibili_disabled_result() -> str:
+    return json.dumps({"ok": False, "error": BILIBILI_FEATURE_DISABLED_ERROR})
+
+
+def _file_ingest_disabled_result() -> str:
+    return json.dumps({"ok": False, "error": FILE_INGEST_FEATURE_DISABLED_ERROR})
+
+
+def _reload_runtime_settings() -> None:
+    task_service.reload_config()
+    qwen_service.reload_config()
+    qwen_tts_service.reload_config()
 
 
 class BackendService(QObject):
@@ -52,6 +85,10 @@ class BackendService(QObject):
 
     # ── Danmu signal ──────────────────────────────────────────────
     show_danmu = Signal(str)
+
+    # ── File ingest signals ───────────────────────────────────────
+    file_ingest_started = Signal(str)
+    file_ingest_finished = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -107,12 +144,32 @@ class BackendService(QObject):
         try:
             updates = json.loads(settings_json)
             config_service.save(updates)
-            qwen_tts_service.refresh_voice_catalog(
-                default_voice=config_service.get("voice"),
-                random_voice_pool=config_service.get("random_voice_pool"),
-            )
-            qwen_tts_service.set_base_url(config_service.get("qwen_tts_base_url"))
+            _reload_runtime_settings()
             return json.dumps({"ok": True})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)})
+
+    @Slot(result=str)
+    def get_settings_backup_info(self) -> str:
+        try:
+            return json.dumps(get_settings_backup_info())
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)})
+
+    @Slot(result=str)
+    def backup_settings(self) -> str:
+        try:
+            return json.dumps(backup_settings())
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)})
+
+    @Slot(result=str)
+    def restore_settings(self) -> str:
+        try:
+            result = restore_settings()
+            if result.get("ok"):
+                _reload_runtime_settings()
+            return json.dumps(result)
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc)})
 
@@ -120,15 +177,50 @@ class BackendService(QObject):
 
     @Slot(result=str)
     def get_bilibili_auth_status(self) -> str:
+        if not config_service.is_feature_enabled("bilibili"):
+            return _bilibili_disabled_status()
+
+        from service.backend.bilibili_handler import get_bilibili_auth_status
+
         return get_bilibili_auth_status()
 
     @Slot(result=str)
     def start_bilibili_qr_login(self) -> str:
+        if not config_service.is_feature_enabled("bilibili"):
+            return _bilibili_disabled_result()
+
+        from service.backend.bilibili_handler import start_bilibili_qr_login
+
         return start_bilibili_qr_login()
 
     @Slot(str, result=str)
     def poll_bilibili_qr_login(self, session_id: str) -> str:
+        if not config_service.is_feature_enabled("bilibili"):
+            return _bilibili_disabled_result()
+
+        from service.backend.bilibili_handler import poll_bilibili_qr_login
+
         return poll_bilibili_qr_login(session_id)
+
+    # ── File ingest ───────────────────────────────────────────────
+
+    def can_accept_file_ingest(self) -> bool:
+        return config_service.is_feature_enabled("file_ingest")
+
+    def handle_native_file_drop(self, paths: list[str]) -> str:
+        return self._start_file_ingest(paths)
+
+    @Slot(str, result=str)
+    def start_file_ingest(self, paths_json: str) -> str:
+        try:
+            payload = json.loads(paths_json)
+        except json.JSONDecodeError:
+            return json.dumps({"ok": False, "error": "Invalid file ingest payload."})
+
+        if not isinstance(payload, list):
+            return json.dumps({"ok": False, "error": "File ingest payload must be a list."})
+
+        return self._start_file_ingest(payload)
 
     # ── Settings profiles ─────────────────────────────────────────
 
@@ -155,7 +247,10 @@ class BackendService(QObject):
     @Slot(str, result=str)
     def delete_settings_profile(self, profile_id: str) -> str:
         try:
+            was_active_profile = config_service.get_active_profile()["id"] == profile_id
             new_active = config_service.delete_profile(profile_id)
+            if was_active_profile:
+                _reload_runtime_settings()
             return json.dumps({"ok": True, "activeProfileId": new_active})
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc)})
@@ -164,6 +259,7 @@ class BackendService(QObject):
     def select_settings_profile(self, profile_id: str) -> str:
         try:
             config_service.set_active_profile(profile_id)
+            _reload_runtime_settings()
             return json.dumps({"ok": True})
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc)})
@@ -291,3 +387,19 @@ class BackendService(QObject):
     def _on_segment_finished(self, segment_id: int, _text: str) -> None:
         """TaskService emits (id, text) but the frontend only expects (id)."""
         self.segment_finished.emit(segment_id)
+
+    def _start_file_ingest(self, raw_paths: list[str]) -> str:
+        if not config_service.is_feature_enabled("file_ingest"):
+            return _file_ingest_disabled_result()
+
+        from service.backend.file_ingest_handler import start_file_ingest
+
+        return start_file_ingest(
+            [str(path) for path in raw_paths],
+            on_started=lambda payload: self.file_ingest_started.emit(
+                json.dumps(payload, ensure_ascii=False)
+            ),
+            on_finished=lambda payload: self.file_ingest_finished.emit(
+                json.dumps(payload, ensure_ascii=False)
+            ),
+        )

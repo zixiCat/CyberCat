@@ -1,26 +1,24 @@
-import { Button, Popover, Segmented, Select, Tooltip } from 'antd';
+import { Button, Segmented, Select, Tooltip } from 'antd';
 import {
   Columns,
-  Copy,
   FileText,
-  Minus,
   Monitor,
   Moon,
   Music,
   Plus,
-  Shuffle,
   Square,
   Sun,
   Trash2,
   Volume2,
   VolumeX,
-  X,
 } from 'lucide-react';
 
 import { useTheme } from '../App';
 import { SettingsProfileButton } from '../components/SettingsProfileButton';
 import { useChatSessionStore } from './chatSessionStore';
 import { useChatUiStore } from './chatUiStore';
+import { RandomVoicePoolPopover } from './RandomVoicePoolPopover';
+import { WindowControls } from './WindowControls';
 
 export interface ChatHeaderProps {
   stopStreaming: () => void;
@@ -56,12 +54,7 @@ export const ChatHeader = ({
   const updateSessions = useChatSessionStore((state) => state.updateSessions);
   const clearCurrentChat = useChatSessionStore((state) => state.clearCurrentChat);
   const createNewSession = useChatSessionStore((state) => state.createNewSession);
-  const cyberCatLogoSrc = 'CyberCat.png';
-  const EMPTY_VOICE_COUNT = 0;
-  const PRIMARY_MOUSE_BUTTON = 0;
   const isDesktopRuntime = Boolean(window.backend);
-  const hasCustomRandomVoicePool = randomVoicePool.length > EMPTY_VOICE_COUNT;
-  const randomVoiceOptions = voiceOptions.filter((option) => option.value !== 'auto');
 
   const handleRandomVoicePoolChange = (voices: string[]) => {
     setUiState({ randomVoicePool: voices });
@@ -76,91 +69,14 @@ export const ChatHeader = ({
         dark:bg-zinc-900
       "
     >
-      <div
-        className="
-          flex items-center justify-between gap-3 border-b border-zinc-200/80 pb-2
-
-          dark:border-white/10
-        "
-      >
-        <div
-          className="
-            flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-lg p-1 select-none
-          "
-          onMouseDown={(event) => {
-            if (event.button !== PRIMARY_MOUSE_BUTTON || !isDesktopRuntime) {
-              return;
-            }
-            event.preventDefault();
-            startWindowDrag();
-          }}
-          onDoubleClick={() => {
-            if (!isDesktopRuntime) {
-              return;
-            }
-            toggleMaximizeWindow();
-          }}
-        >
-          <img
-            src={cyberCatLogoSrc}
-            alt="CyberCat"
-            className="size-6 shrink-0 rounded-md object-cover"
-            draggable={false}
-          />
-          <span
-            className="
-              truncate bg-linear-to-r from-blue-500 to-violet-600 bg-clip-text text-[11px] font-bold
-              tracking-[0.28em] text-transparent uppercase italic
-            "
-          >
-            CyberCat
-          </span>
-        </div>
-
-        {isDesktopRuntime && (
-          <div className="flex items-center gap-1">
-            <Tooltip title="Minimize">
-              <Button
-                type="text"
-                size="small"
-                onClick={minimizeWindow}
-                icon={<Minus size={14} />}
-                className="
-                  hover:bg-zinc-200/70
-
-                  dark:hover:bg-white/10
-                "
-              />
-            </Tooltip>
-            <Tooltip title={isWindowMaximized ? 'Restore' : 'Maximize'}>
-              <Button
-                type="text"
-                size="small"
-                onClick={toggleMaximizeWindow}
-                icon={isWindowMaximized ? <Copy size={13} /> : <Square size={12} />}
-                className="
-                  hover:bg-zinc-200/70
-
-                  dark:hover:bg-white/10
-                "
-              />
-            </Tooltip>
-            <Tooltip title="Close">
-              <Button
-                type="text"
-                size="small"
-                onClick={closeWindow}
-                icon={<X size={14} />}
-                className="
-                  hover:bg-red-100 hover:text-red-600
-
-                  dark:hover:bg-red-500/20
-                "
-              />
-            </Tooltip>
-          </div>
-        )}
-      </div>
+      <WindowControls
+        isDesktopRuntime={isDesktopRuntime}
+        isWindowMaximized={isWindowMaximized}
+        startWindowDrag={startWindowDrag}
+        toggleMaximizeWindow={toggleMaximizeWindow}
+        minimizeWindow={minimizeWindow}
+        closeWindow={closeWindow}
+      />
 
       <div className="
         relative mt-2 flex flex-col gap-2
@@ -237,96 +153,12 @@ export const ChatHeader = ({
           variant="borderless"
         />
 
-        <Popover
-          trigger="click"
-          placement="bottom"
-          content={
-            <div className="flex w-64 flex-col gap-3">
-              <div>
-                <div
-                  className="
-                    text-[11px] font-medium text-zinc-700
-
-                    dark:text-zinc-200
-                  "
-                >
-                  Random voice pool
-                </div>
-                <div
-                  className="
-                    mt-1 text-[10px] text-zinc-500
-
-                    dark:text-zinc-400
-                  "
-                >
-                  Auto will only pick from these voices. Switch the voice selector to Auto to use this pool.
-                </div>
-              </div>
-
-              <Select
-                mode="multiple"
-                size="small"
-                value={randomVoicePool}
-                options={randomVoiceOptions.map((option) => ({
-                  label: option.label,
-                  value: option.value,
-                }))}
-                onChange={(voices) => handleRandomVoicePoolChange(voices)}
-                placeholder="Use all voices"
-                className="w-full"
-                disabled={selectedVoice !== 'auto'}
-              />
-
-              <div className="flex items-center justify-between gap-2">
-                <Button
-                  size="small"
-                  type="text"
-                  onClick={() =>
-                    handleRandomVoicePoolChange(randomVoiceOptions.map((option) => option.value))
-                  }
-                  disabled={selectedVoice !== 'auto'}
-                >
-                  Select all
-                </Button>
-                <Button
-                  size="small"
-                  type="text"
-                  onClick={() => handleRandomVoicePoolChange([])}
-                  disabled={selectedVoice !== 'auto'}
-                >
-                  Clear
-                </Button>
-              </div>
-            </div>
-          }
-        >
-          <Tooltip
-            title={
-              selectedVoice === 'auto'
-                ? hasCustomRandomVoicePool
-                  ? `Random pool: ${randomVoicePool.length} voices`
-                  : 'Random pool: all voices'
-                : 'Random pool is available when voice is set to Auto'
-            }
-          >
-            <Button
-              type="text"
-              size="small"
-              icon={<Shuffle size={14} className="opacity-80" />}
-              className="
-                text-zinc-500
-
-                hover:text-blue-500
-
-                dark:text-zinc-400
-              "
-            >
-              <span className="text-[10px]">
-                {hasCustomRandomVoicePool ? randomVoicePool.length : 'All'}
-              </span>
-            </Button>
-          </Tooltip>
-        </Popover>
+        <RandomVoicePoolPopover
+          selectedVoice={selectedVoice}
+          randomVoicePool={randomVoicePool}
+          voiceOptions={voiceOptions}
+          onPoolChange={handleRandomVoicePoolChange}
+        />
 
         <Segmented
           size="small"

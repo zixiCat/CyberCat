@@ -347,7 +347,7 @@ export const BilibiliAuthPanel = ({ onCookieSaved }: BilibiliAuthPanelProps) => 
         </h3>
 
         <div className={`
-          inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium
+          inline-flex items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-xs font-medium
 
           ${statusBadge.className}
         `}>
@@ -375,10 +375,10 @@ export const BilibiliAuthPanel = ({ onCookieSaved }: BilibiliAuthPanelProps) => 
           dark:border-white/10 dark:bg-zinc-900/70
         ">
           {qrUrl ? (
-            <QRCode value={qrUrl} size={120} />
+            <QRCode value={qrUrl} size={300} />
           ) : (
             <div className="
-              flex size-[136px] items-center justify-center text-zinc-300
+              flex size-[316px] items-center justify-center text-zinc-300
 
               dark:text-zinc-600
             ">
