@@ -20,8 +20,8 @@ interface DisplaySegmentGroup {
   segments: ChunkSegment[];
 }
 
-const normalizeSlashSeparatedText = (text: string) =>
-  text.replace(/\s*\n\s*\/\s*/g, ' / ').replace(/\s*\/\s*\n\s*/g, ' / ');
+const EMPTY_AUDIO_CHUNKS = 0;
+const LAST_SEGMENT_OFFSET = 1;
 
 const buildDisplaySegmentGroups = (
   segments: ChunkSegment[],
@@ -32,33 +32,24 @@ const buildDisplaySegmentGroups = (
       (segment, index) =>
         segment.text.trim() !== '' ||
         segment.id === currentReceivingSegmentId ||
-        index === segments.length - 1,
+        index === segments.length - LAST_SEGMENT_OFFSET,
     )
-    .reduce<DisplaySegmentGroup[]>((groups, segment) => {
-      const text = normalizeSlashSeparatedText(segment.text);
-      const trimmedText = text.trim();
-      const previousGroup = groups[groups.length - 1];
-
-      if (previousGroup && /^\//.test(trimmedText)) {
-        previousGroup.text = `${previousGroup.text.replace(/\s+$/g, '')} ${trimmedText.replace(/^\/\s*/g, '/ ')}`;
-        previousGroup.segments.push(segment);
-        return groups;
-      }
-
-      groups.push({
+    .map<DisplaySegmentGroup>((segment) => ({
         id: segment.id,
-        text,
+        text: segment.text,
         segments: [segment],
-      });
-      return groups;
-    }, []);
+      }));
 
 const MarkdownMessage = memo(({ text }: { text: string }) => (
   <div className="cybercat-markdown min-w-0 flex-1">
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
+        a: ({ node: _node, children, ...props }) => (
+          <a {...props} target="_blank" rel="noreferrer">
+            {children}
+          </a>
+        ),
       }}
     >
       {text}
@@ -125,19 +116,20 @@ export const ChatTaskCard = memo(
             const playableSegment =
               group.segments.find(
                 (segment) =>
-                  (segment.audioChunks && segment.audioChunks.length > 0) || segment.audioFile,
+                  (segment.audioChunks && segment.audioChunks.length > EMPTY_AUDIO_CHUNKS) ||
+                  segment.audioFile,
               ) ?? group.segments[0];
             const hasAudio = group.segments.some(
               (segment) =>
-                (segment.audioChunks && segment.audioChunks.length > 0) || segment.audioFile,
+                (segment.audioChunks && segment.audioChunks.length > EMPTY_AUDIO_CHUNKS) ||
+                segment.audioFile,
             );
 
             return (
               <div key={group.id} className="group flex items-center justify-between gap-3">
                 <div
                   className={`
-                    flex min-h-[24px] flex-1 text-[13px]/[1.5]
-                    transition-colors
+                    flex min-h-[24px] flex-1 text-[13px]/[1.5] transition-colors
 
                     ${
                       isPlaying

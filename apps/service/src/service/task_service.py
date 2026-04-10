@@ -12,6 +12,7 @@ import base64
 import json
 import time
 import threading
+import unicodedata
 from queue import Empty, Queue
 from typing import Any
 
@@ -23,7 +24,6 @@ from service.config_service import config_service
 from service.qwen_tts_service import decode_audio_chunk, qwen_tts_service
 
 MAX_HISTORY_MESSAGES = 20
-_SENTENCE_DELIMITERS = frozenset({".", "。", "!", "！", "?", "？", "\n"})
 
 
 class TaskService(QObject):
@@ -110,6 +110,7 @@ class TaskService(QObject):
             seg_id = task_id * 10000 + seg_index
             first_chunk_logged = False
             first_text_logged = False
+            pending_boundary = False
 
             async for event in response.stream_events():
                 if self._stop_event.is_set():
@@ -134,17 +135,33 @@ class TaskService(QObject):
                 for char in content:
                     if self._stop_event.is_set():
                         break
+
+                    if pending_boundary:
+                        if (
+                            char.isspace()
+                            or _is_sentence_suffix_char(char)
+                            or _is_sentence_delimiter(char)
+                        ):
+                            sentence_buf += char
+                            self.segment_text_chunk.emit(seg_id, char)
+                            continue
+
+                        if _should_close_sentence(sentence_buf, char):
+                            sentence = sentence_buf.strip()
+                            if sentence:
+                                self.segment_ready.emit(seg_id, sentence)
+                                self._enqueue_tts(seg_id, sentence)
+                            sentence_buf = ""
+                            seg_index += 1
+                            seg_id = task_id * 10000 + seg_index
+
+                        pending_boundary = False
+
                     sentence_buf += char
                     self.segment_text_chunk.emit(seg_id, char)
 
-                    if char in _SENTENCE_DELIMITERS:
-                        sentence = sentence_buf.strip()
-                        if sentence:
-                            self.segment_ready.emit(seg_id, sentence)
-                            self._enqueue_tts(seg_id, sentence)
-                        sentence_buf = ""
-                        seg_index += 1
-                        seg_id = task_id * 10000 + seg_index
+                    if _is_sentence_delimiter(char):
+                        pending_boundary = True
 
             # Flush remaining text
             if not self._stop_event.is_set():
@@ -258,6 +275,62 @@ def _parse_history(history_json: str | None) -> list[dict[str, str]]:
             messages.append({"role": role, "content": text})
 
     return messages[-MAX_HISTORY_MESSAGES:]
+
+
+def _should_close_sentence(sentence_text: str, next_char: str | None) -> bool:
+    delimiter, sentence_body = _split_sentence_delimiter(sentence_text)
+    if delimiter is None:
+        return False
+
+    if delimiter == "\n":
+        return True
+
+    next_meaningful = None if next_char is None or next_char.isspace() else next_char
+    previous_char = _last_non_whitespace_char(sentence_body)
+
+    if delimiter in {".", "。"}:
+        if (
+            previous_char
+            and previous_char.isdigit()
+            and next_meaningful
+            and next_meaningful.isdigit()
+        ):
+            return False
+        if next_meaningful and next_meaningful.islower():
+            return False
+
+    return True
+
+
+def _split_sentence_delimiter(sentence_text: str) -> tuple[str | None, str]:
+    stripped = sentence_text.rstrip()
+    while stripped and _is_sentence_suffix_char(stripped[-1]):
+        stripped = stripped[:-1].rstrip()
+
+    if not stripped:
+        return None, ""
+
+    delimiter = stripped[-1]
+    if not _is_sentence_delimiter(delimiter):
+        return None, stripped
+
+    return delimiter, stripped[:-1]
+
+
+def _last_non_whitespace_char(text: str) -> str | None:
+    stripped = text.rstrip()
+    return stripped[-1] if stripped else None
+
+
+def _is_sentence_delimiter(char: str) -> bool:
+    return char in {".", "。", "!", "！", "?", "？", "\n"}
+
+
+def _is_sentence_suffix_char(char: str) -> bool:
+    if char in {'"', "'"}:
+        return True
+
+    return unicodedata.category(char) in {"Pe", "Pf"}
 
 
 def _extract_text_delta(event) -> str:

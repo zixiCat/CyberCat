@@ -39,6 +39,104 @@ export const useChatBootstrap = ({
   scrollTaskToTop,
 }: UseChatBootstrapOptions) => {
   const cancelledRef = useRef(false);
+  const pendingTextChunksRef = useRef<Map<number, string>>(new Map());
+  const pendingTextFlushTimerRef = useRef<number | null>(null);
+
+  const flushPendingTextChunks = () => {
+    if (pendingTextFlushTimerRef.current !== null) {
+      window.clearTimeout(pendingTextFlushTimerRef.current);
+      pendingTextFlushTimerRef.current = null;
+    }
+
+    if (pendingTextChunksRef.current.size === ZERO_PROMPTS) {
+      return;
+    }
+
+    const chunksByTaskId = new Map<number, Array<[number, string]>>();
+    pendingTextChunksRef.current.forEach((text, segmentId) => {
+      const taskId = Math.floor(segmentId / SEGMENT_TASK_DIVISOR);
+      const taskChunks = chunksByTaskId.get(taskId) ?? [];
+      taskChunks.push([segmentId, text]);
+      chunksByTaskId.set(taskId, taskChunks);
+    });
+    pendingTextChunksRef.current.clear();
+
+    useChatSessionStore.getState().updateSessions((prev) =>
+      prev.map((session) => {
+        let sessionChanged = false;
+        const nextTasks = session.tasks.map((task) => {
+          const pendingTaskChunks = chunksByTaskId.get(task.id);
+          if (!pendingTaskChunks || pendingTaskChunks.length === ZERO_PROMPTS) {
+            return task;
+          }
+
+          let taskChanged = false;
+          let nextSegments = task.segments;
+
+          pendingTaskChunks.forEach(([segmentId, chunkText]) => {
+            const segmentIndex = nextSegments.findIndex((segment) => segment.id === segmentId);
+            if (segmentIndex !== -1) {
+              const existingSegment = nextSegments[segmentIndex];
+              const nextText = `${existingSegment.text ?? ''}${chunkText ?? ''}`;
+              if (nextText === existingSegment.text) {
+                return;
+              }
+
+              if (!taskChanged) {
+                nextSegments = [...task.segments];
+              }
+
+              nextSegments[segmentIndex] = {
+                ...existingSegment,
+                text: nextText,
+              };
+              taskChanged = true;
+              return;
+            }
+
+            if (!taskChanged) {
+              nextSegments = [...task.segments];
+            }
+
+            nextSegments.push({ id: segmentId, text: chunkText ?? '', audioChunks: [] });
+            taskChanged = true;
+          });
+
+          if (!taskChanged) {
+            return task;
+          }
+
+          sessionChanged = true;
+          return {
+            ...task,
+            segments: nextSegments,
+          };
+        });
+
+        if (!sessionChanged) {
+          return session;
+        }
+
+        return {
+          ...session,
+          tasks: nextTasks,
+        };
+      }),
+    );
+  };
+
+  const queueTextChunk = (segmentId: number, chunk: string) => {
+    const existingText = pendingTextChunksRef.current.get(segmentId) ?? '';
+    pendingTextChunksRef.current.set(segmentId, `${existingText}${chunk ?? ''}`);
+
+    if (pendingTextFlushTimerRef.current !== null) {
+      return;
+    }
+
+    pendingTextFlushTimerRef.current = window.setTimeout(() => {
+      flushPendingTextChunks();
+    }, ZERO_DELAY_MS);
+  };
 
   useMount(() => {
     cancelledRef.current = false;
@@ -72,45 +170,12 @@ export const useChatBootstrap = ({
                 };
               }),
             );
+            flushPendingTextChunks();
             scrollTaskToTop(taskId);
           }, ZERO_DELAY_MS);
         },
         onSegmentTextChunk: (segmentId: number, chunk: string) => {
-          const taskId = Math.floor(segmentId / SEGMENT_TASK_DIVISOR);
-          useChatSessionStore.getState().updateSessions((prev) =>
-            prev.map((session) => {
-              const taskExists = session.tasks.some((task) => task.id === taskId);
-              if (!taskExists) {
-                return session;
-              }
-
-              return {
-                ...session,
-                tasks: session.tasks.map((task) => {
-                  if (task.id !== taskId) {
-                    return task;
-                  }
-
-                  const existingSegment = task.segments.find((segment) => segment.id === segmentId);
-                  if (existingSegment) {
-                    return {
-                      ...task,
-                      segments: task.segments.map((segment) =>
-                        segment.id === segmentId
-                          ? { ...segment, text: (segment.text ?? '') + (chunk ?? '') }
-                          : segment,
-                      ),
-                    };
-                  }
-
-                  return {
-                    ...task,
-                    segments: [...task.segments, { id: segmentId, text: chunk ?? '', audioChunks: [] }],
-                  };
-                }),
-              };
-            }),
-          );
+          queueTextChunk(segmentId, chunk);
         },
         onSegmentAudioChunk: (segmentId: number, audioBase64: string) => {
           processAudioChunk(segmentId, audioBase64);
@@ -119,6 +184,7 @@ export const useChatBootstrap = ({
           handleSegmentFinished(segmentId);
         },
         onTaskFinished: () => {
+          flushPendingTextChunks();
           useChatUiStore.getState().setUiState({ isTaskRunning: false });
           finalizePendingSegments();
         },
@@ -245,6 +311,7 @@ export const useChatBootstrap = ({
 
   useUnmount(() => {
     cancelledRef.current = true;
+    flushPendingTextChunks();
     window.cyberCatBackendSignalHandlers = {};
   });
 };
