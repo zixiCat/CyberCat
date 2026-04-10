@@ -73,6 +73,21 @@ export const ChatView = () => {
       });
   }, [setUiState]);
 
+  const syncSelectedPromptContent = useCallback(async (promptFile: string) => {
+    const backend = window.backend;
+    if (!promptFile || !backend?.get_prompt_content) {
+      return;
+    }
+
+    try {
+      const content = await backend.get_prompt_content(promptFile);
+      setUiState({ selectedPromptContent: content });
+      backend.set_active_system_prompt?.(content);
+    } catch (error) {
+      console.error('Failed to sync the selected prompt content:', error);
+    }
+  }, [setUiState]);
+
   const reloadProfileSettings = useCallback(async () => {
     const backend = window.backend;
     if (!backend?.get_settings || !backend.get_active_voice || !backend.get_voice_options) {
@@ -106,29 +121,21 @@ export const ChatView = () => {
         thinkingSupported: supported,
         thinkingEnabled: supported && Boolean(settings[THINKING_FIELD_KEY]),
       });
+      await syncSelectedPromptContent(selectedPromptFile);
     } catch (error) {
       console.error('Failed to reload profile settings:', error);
     }
-  }, [setUiState]);
+  }, [selectedPromptFile, setUiState, syncSelectedPromptContent]);
 
   useEffect(() => {
     const session = sessions.find((s) => s.id === selectedSessionId);
-    const backend = window.backend;
-    if (!session?.systemPromptFile || session.systemPromptFile === selectedPromptFile || !backend?.get_prompt_content) {
+    if (!session?.systemPromptFile || session.systemPromptFile === selectedPromptFile) {
       return;
     }
 
     setUiState({ selectedPromptFile: session.systemPromptFile });
-    backend
-      .get_prompt_content(session.systemPromptFile)
-      .then((content: string) => {
-        setUiState({ selectedPromptContent: content });
-        backend.set_active_system_prompt?.(content);
-      })
-      .catch((error: unknown) => {
-        console.error('Failed to sync the session prompt:', error);
-      });
-  }, [selectedPromptFile, selectedSessionId, sessions, setUiState]);
+    void syncSelectedPromptContent(session.systemPromptFile);
+  }, [selectedPromptFile, selectedSessionId, sessions, setUiState, syncSelectedPromptContent]);
 
   const scrollTaskToTop = useCallback((taskId: number, behavior: ScrollBehavior = 'smooth') => {
     const container = chatScrollContainerRef.current;

@@ -14,6 +14,7 @@ export interface SettingsField {
 export type SettingsValue = string | boolean;
 
 const DEFAULT_TEXTAREA_ROWS = 4;
+const PROMPT_TEXTAREA_ROWS = 18;
 
 export const FEATURE_FIELDS: SettingsField[] = [
   {
@@ -59,6 +60,20 @@ export const SETTINGS_FIELDS: SettingsField[] = [
     placeholder: 'gpt-4o',
     required: true,
     secret: false,
+  },
+];
+
+export const AI_PROMPT_FIELDS: SettingsField[] = [
+  {
+    key: 'lang_ass_prompt',
+    label: 'LangAss Prompt',
+    placeholder: 'You are my English language assistant...',
+    required: false,
+    secret: false,
+    multiline: true,
+    rows: PROMPT_TEXTAREA_ROWS,
+    description:
+      'Overrides the LangAss preset in chat. Edit it here instead of changing prompt files on disk.',
   },
 ];
 

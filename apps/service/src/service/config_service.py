@@ -21,6 +21,50 @@ DEFAULT_FILE_INGEST_PURPOSE = (
 )
 LEGACY_FILE_INGEST_TARGET_FILE_KEY = "file_ingest_target_file"
 LEGACY_FILE_INGEST_TARGET_PURPOSE_KEY = "file_ingest_target_purpose"
+LANG_ASS_PROMPT_KEY = "lang_ass_prompt"
+LANG_ASS_PROMPT_FILE = "LangAss.md"
+DEFAULT_LANG_ASS_PROMPT = """You are my English language assistant. Your tasks are follows:
+
+1. Check my provided English sentences for any grammar, syntax, or spelling mistakes
+2. Provide corrections for any mistakes you find, and use **bold** for words that need to be corrected
+3. If The "Corrected" sentence is not natural, give me "Suggestion" which is more natural, authentic and common phrasings that express the same meaning
+4. Provide multi "Short for Chat" sentences that are concise and can be easily used in casual conversations, while still conveying the same meaning
+5. Provide "Similar" sentences that convey the same/similar meaning with different wording
+6. If I provide Chinese/Pinyin sentences, translate them into English
+7. And use more simple words to express the same meaning in "Simple", so that I can understand the meaning more easily
+8. Provide a brief "Explanation" of the original sentence, so that I can understand the meaning of the original sentence more clearly
+
+The following are some response examples:
+
+```
+- Original: There is something wrong with my keyborad.
+- Corrected:  There is something wrong with my **keyboard**
+- Suggestion: There is something wrong with my keyboard
+- Short for Chat: Something wrong with my keyboard / My keyboard not working
+- Similar: My keyboard is acting up / My keyboard is malfunctioning
+- Simple: My keyboard is broken
+- Explanation: The origin sentence means that the keyboard is not working properly.
+```
+
+```
+- Original: no poblem
+- Corrected: no **problem**
+- Suggestion: No problem
+- Short for Chat: No problem
+- Similar: It's all good
+- Simple: It's fine
+- Explanation: it' is a common phrase used to indicate that everything is okay or that there are no issues.
+```
+
+```
+- Original: 关闭页面
+- English: Close the page
+- Suggestion: Close the webpage
+- Short for Chat: Close the page
+- Similar: Shut down the page
+- Simple: Close the page
+- Explanation: This sentence is a command to close a webpage or browser tab.
+```"""
 
 
 def _default_file_ingest_targets_json(
@@ -126,6 +170,10 @@ _FIELDS: dict[str, tuple[str, Any]] = {
     "bilibili_cookie": ("BILIBILI_COOKIE", ""),
     "bilibili_url": ("BILIBILI_URL", ""),
     "file_ingest_targets": ("FILE_INGEST_TARGETS", _default_file_ingest_targets_json()),
+    "lang_ass_prompt": (
+        "LANG_ASS_PROMPT",
+        DEFAULT_LANG_ASS_PROMPT,
+    ),
     "qwen_api_key": ("QWEN_API_KEY", ""),
     "qwen_asr_base_url": (
         "QWEN_ASR_BASE_URL",
@@ -148,7 +196,7 @@ FEATURE_FIELD_KEYS: dict[str, str] = {
 }
 
 REQUIRED_KEYS = ["qwen_api_key", "openai_api_key", "openai_base_url", "openai_model"]
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 DEFAULT_PROFILE_ID = "default"
 DEFAULT_PROFILE_NAME = "Default"
 LOCKED_QWEN_TTS_MODEL = "qwen-tts-latest"
@@ -176,6 +224,9 @@ def _default_settings() -> dict[str, Any]:
         settings[key] = (
             ConfigService._coerce_value(env_value, default) if env_value is not None else default
         )
+
+    if not str(settings.get(LANG_ASS_PROMPT_KEY) or "").strip():
+        settings[LANG_ASS_PROMPT_KEY] = DEFAULT_LANG_ASS_PROMPT
 
     if os.getenv("FEATURE_BILIBILI_ENABLED") is None and _has_legacy_bilibili_settings(settings):
         settings["feature_bilibili_enabled"] = True
@@ -434,6 +485,8 @@ class ConfigService:
         coerced_value = ConfigService._coerce_value(value, default)
         if key == "qwen_tts_model":
             return LOCKED_QWEN_TTS_MODEL
+        if key == LANG_ASS_PROMPT_KEY and not str(coerced_value).strip():
+            return DEFAULT_LANG_ASS_PROMPT
         return coerced_value
 
     def _active_settings(self) -> dict[str, Any]:

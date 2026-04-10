@@ -15,12 +15,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSetState } from 'react-use';
 
 import { loadBackendJson, waitForBackend } from '../backendShared';
+import { useChatUiStore } from '../chatView/chatUiStore';
 import { SettingsBackupActionResult, SettingsBackupInfo } from '../chatView/types';
 import { BilibiliAuthPanel } from './BilibiliAuthPanel';
 import { FileIngestTargetsEditor } from './FileIngestTargetsEditor';
 import { SettingsBackupPanel } from './SettingsBackupPanel';
 import { SettingsFieldList } from './SettingsFieldList';
 import {
+  AI_PROMPT_FIELDS,
   BILIBILI_FIELDS,
   FEATURE_FIELDS,
   REQUIRED_FIELDS,
@@ -119,7 +121,7 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
       : resolvedActiveSection === 'features'
       ? 'Turn optional modules on only when you want them available.'
       : resolvedActiveSection === 'ai'
-        ? 'Set the providers and credentials the assistant depends on.'
+        ? 'Set the providers, credentials, and built-in prompt overrides the assistant depends on.'
         : resolvedActiveSection === 'bilibili'
           ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
           : resolvedActiveSection === 'fileIngest'
@@ -179,6 +181,19 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
         'Save settings',
       );
       if (result.ok) {
+        const backend = window.backend;
+        const { selectedPromptFile, setUiState } = useChatUiStore.getState();
+
+        if (selectedPromptFile && backend?.get_prompt_content) {
+          try {
+            const content = await backend.get_prompt_content(selectedPromptFile);
+            setUiState({ selectedPromptContent: content });
+            backend.set_active_system_prompt?.(content);
+          } catch (error: unknown) {
+            console.error('Failed to refresh the active prompt after saving settings:', error);
+          }
+        }
+
         setState({ message: { type: 'success', text: 'Settings saved.' } });
         if (onSaved) {
           onSaved();
@@ -701,6 +716,27 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                       onToggleReveal={toggleReveal}
                       showRequiredMarker
                     />
+
+                    <div className="border-t border-zinc-200/80 pt-6 dark:border-white/10">
+                      <div>
+                        <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                          Prompt Overrides
+                        </h4>
+                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                          Manage built-in prompt text from the UI without editing markdown files.
+                        </p>
+                      </div>
+
+                      <div className="mt-5">
+                        <SettingsFieldList
+                          fields={AI_PROMPT_FIELDS}
+                          values={values}
+                          revealedKeys={revealedKeys}
+                          onValueChange={setValue}
+                          onToggleReveal={toggleReveal}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : resolvedActiveSection === 'bilibili' ? (

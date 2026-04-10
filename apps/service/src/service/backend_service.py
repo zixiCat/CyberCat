@@ -27,7 +27,6 @@ from service.config_service import config_service
 from service.qwen_service import qwen_service
 from service.qwen_tts_service import qwen_tts_service
 from service.task_service import task_service
-from utils.markdown_text import markdown_to_plain_text_single_line
 
 BILIBILI_FEATURE_DISABLED_ERROR = "Bilibili is disabled. Enable it in Settings > Features."
 FILE_INGEST_FEATURE_DISABLED_ERROR = "File ingest is disabled. Enable it in Settings > Features."
@@ -100,9 +99,8 @@ class BackendService(QObject):
     @Slot(str, str, str)
     def start_task(self, text: str, system_prompt: str = "", history_json: str = "") -> None:
         prompt = system_prompt or self._active_system_prompt
-        plain_text = markdown_to_plain_text_single_line(prompt) if prompt else ""
         task_service.reload_config()
-        task_service.start_task(text, system_prompt=plain_text, history_json=history_json)
+        task_service.start_task(text, system_prompt=prompt, history_json=history_json)
 
     @Slot()
     def stop_task(self) -> None:
