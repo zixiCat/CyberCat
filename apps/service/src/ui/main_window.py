@@ -22,7 +22,7 @@ if sys.platform == "win32":
     SWP_FRAMECHANGED = 0x0020
 
 HTTP_URL_SCHEMES = {"http", "https"}
-LINK_CLICKED_NAVIGATION = getattr(
+NAVIGATION_TYPE_LINK_CLICKED = getattr(
     QWebEnginePage,
     "NavigationTypeLinkClicked",
     QWebEnginePage.NavigationType.NavigationTypeLinkClicked,
@@ -30,7 +30,7 @@ LINK_CLICKED_NAVIGATION = getattr(
 
 
 def _should_open_externally(url: QUrl, navigation_type) -> bool:
-    return navigation_type == LINK_CLICKED_NAVIGATION and url.scheme() in HTTP_URL_SCHEMES
+    return navigation_type == NAVIGATION_TYPE_LINK_CLICKED and url.scheme() in HTTP_URL_SCHEMES
 
 
 class DesktopWebPage(QWebEnginePage):
@@ -41,8 +41,7 @@ class DesktopWebPage(QWebEnginePage):
 
         return super().acceptNavigationRequest(url, navigation_type, is_main_frame)
 
-    def createWindow(self, window_type):
-        _ = window_type
+    def createWindow(self, _window_type):
         return ExternalLinkPage(self.profile(), self)
 
 
