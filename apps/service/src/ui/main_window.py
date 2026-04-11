@@ -29,7 +29,9 @@ NAVIGATION_TYPE_LINK_CLICKED = getattr(
 )
 
 
-def _should_open_externally(url: QUrl, navigation_type) -> bool:
+def _should_open_externally(
+    url: QUrl, navigation_type: QWebEnginePage.NavigationType
+) -> bool:
     return navigation_type == NAVIGATION_TYPE_LINK_CLICKED and url.scheme() in HTTP_URL_SCHEMES
 
 
@@ -70,7 +72,7 @@ class MainWindow(QMainWindow):
         self._restore_window_geometry()
 
         self.browser = QWebEngineView()
-        self.browser.setPage(DesktopWebPage(self.browser))
+        self.browser.setPage(DesktopWebPage(parent=self.browser))
         self.browser.setAcceptDrops(False)
         self.browser.installEventFilter(self)
         self.setCentralWidget(self.browser)
