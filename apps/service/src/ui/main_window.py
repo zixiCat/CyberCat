@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QRect, QSettings, QUrl, Qt
-from PySide6.QtGui import QCursor
+from PySide6.QtGui import QCursor, QDesktopServices
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEngineSettings
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QMainWindow
 
@@ -20,6 +20,39 @@ if sys.platform == "win32":
     SWP_NOSIZE = 0x0001
     SWP_NOZORDER = 0x0004
     SWP_FRAMECHANGED = 0x0020
+
+HTTP_URL_SCHEMES = {"http", "https"}
+LINK_CLICKED_NAVIGATION = getattr(
+    QWebEnginePage,
+    "NavigationTypeLinkClicked",
+    QWebEnginePage.NavigationType.NavigationTypeLinkClicked,
+)
+
+
+def _should_open_externally(url: QUrl, navigation_type) -> bool:
+    return navigation_type == LINK_CLICKED_NAVIGATION and url.scheme() in HTTP_URL_SCHEMES
+
+
+class DesktopWebPage(QWebEnginePage):
+    def acceptNavigationRequest(self, url, navigation_type, is_main_frame):
+        if _should_open_externally(url, navigation_type):
+            QDesktopServices.openUrl(url)
+            return False
+
+        return super().acceptNavigationRequest(url, navigation_type, is_main_frame)
+
+    def createWindow(self, window_type):
+        _ = window_type
+        return ExternalLinkPage(self.profile(), self)
+
+
+class ExternalLinkPage(QWebEnginePage):
+    def acceptNavigationRequest(self, url, navigation_type, is_main_frame):
+        if url.scheme() in HTTP_URL_SCHEMES:
+            QDesktopServices.openUrl(url)
+
+        self.deleteLater()
+        return False
 
 
 class MainWindow(QMainWindow):
@@ -38,6 +71,7 @@ class MainWindow(QMainWindow):
         self._restore_window_geometry()
 
         self.browser = QWebEngineView()
+        self.browser.setPage(DesktopWebPage(self.browser))
         self.browser.setAcceptDrops(False)
         self.browser.installEventFilter(self)
         self.setCentralWidget(self.browser)
