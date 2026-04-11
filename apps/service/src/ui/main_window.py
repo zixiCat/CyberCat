@@ -32,19 +32,29 @@ def should_open_externally(
 
 
 class DesktopWebPage(QWebEnginePage):
-    def acceptNavigationRequest(self, url, navigation_type, is_main_frame):
+    def acceptNavigationRequest(
+        self,
+        url: QUrl,
+        navigation_type: QWebEnginePage.NavigationType,
+        is_main_frame: bool,
+    ) -> bool:
         if should_open_externally(url, navigation_type):
             QDesktopServices.openUrl(url)
             return False
 
         return super().acceptNavigationRequest(url, navigation_type, is_main_frame)
 
-    def createWindow(self, _window_type):
+    def createWindow(self, _window_type: QWebEnginePage.WebWindowType) -> QWebEnginePage:
         return ExternalLinkPage(self.profile(), self)
 
 
 class ExternalLinkPage(QWebEnginePage):
-    def acceptNavigationRequest(self, url, navigation_type, is_main_frame):
+    def acceptNavigationRequest(
+        self,
+        url: QUrl,
+        navigation_type: QWebEnginePage.NavigationType,
+        is_main_frame: bool,
+    ) -> bool:
         if url.scheme() in HTTP_URL_SCHEMES:
             QDesktopServices.openUrl(url)
 
