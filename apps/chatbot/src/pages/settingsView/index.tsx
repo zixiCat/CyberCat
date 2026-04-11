@@ -16,13 +16,13 @@ import { useSetState } from 'react-use';
 
 import { loadBackendJson, waitForBackend } from '../backendShared';
 import { useChatUiStore } from '../chatView/chatUiStore';
-import { SettingsBackupActionResult, SettingsBackupInfo } from '../chatView/types';
+import { PromptOption, SettingsBackupActionResult, SettingsBackupInfo } from '../chatView/types';
 import { BilibiliAuthPanel } from './BilibiliAuthPanel';
+import { CustomPromptsEditor } from './CustomPromptsEditor';
 import { FileIngestTargetsEditor } from './FileIngestTargetsEditor';
 import { SettingsBackupPanel } from './SettingsBackupPanel';
 import { SettingsFieldList } from './SettingsFieldList';
 import {
-  AI_PROMPT_FIELDS,
   BILIBILI_FIELDS,
   FEATURE_FIELDS,
   REQUIRED_FIELDS,
@@ -121,7 +121,7 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
       : resolvedActiveSection === 'features'
       ? 'Turn optional modules on only when you want them available.'
       : resolvedActiveSection === 'ai'
-        ? 'Set the providers, credentials, and built-in prompt overrides the assistant depends on.'
+        ? 'Set the providers, credentials, and saved custom chat prompts the assistant can use.'
         : resolvedActiveSection === 'bilibili'
           ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
           : resolvedActiveSection === 'fileIngest'
@@ -184,7 +184,43 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
         const backend = window.backend;
         const { selectedPromptFile, setUiState } = useChatUiStore.getState();
 
-        if (selectedPromptFile && backend?.get_prompt_content) {
+        const resolvePromptSelection = (prompts: PromptOption[], preferredPromptFile: string) => {
+          if (!prompts.length) {
+            return null;
+          }
+
+          return (
+            prompts.find((prompt) => prompt.file === preferredPromptFile) ??
+            prompts.find((prompt) => prompt.file === 'Default.md') ??
+            prompts[0]
+          );
+        };
+
+        if (backend?.get_available_prompts) {
+          try {
+            const prompts = await loadBackendJson<PromptOption[]>(
+              () => backend.get_available_prompts?.(),
+              'Available prompts',
+            );
+            const resolvedPrompt = resolvePromptSelection(prompts, selectedPromptFile);
+
+            setUiState({
+              availablePrompts: prompts,
+              selectedPromptFile: resolvedPrompt?.file ?? '',
+              ...(resolvedPrompt ? {} : { selectedPromptContent: '' }),
+            });
+
+            if (resolvedPrompt && backend.get_prompt_content) {
+              const content = await backend.get_prompt_content(resolvedPrompt.file);
+              setUiState({ selectedPromptContent: content });
+              backend.set_active_system_prompt?.(content);
+            } else if (!resolvedPrompt) {
+              backend.set_active_system_prompt?.('');
+            }
+          } catch (error: unknown) {
+            console.error('Failed to refresh the active prompt after saving settings:', error);
+          }
+        } else if (selectedPromptFile && backend?.get_prompt_content) {
           try {
             const content = await backend.get_prompt_content(selectedPromptFile);
             setUiState({ selectedPromptContent: content });
@@ -717,23 +753,32 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                       showRequiredMarker
                     />
 
-                    <div className="border-t border-zinc-200/80 pt-6 dark:border-white/10">
+                    <div className="
+                      border-t border-zinc-200/80 pt-6
+
+                      dark:border-white/10
+                    ">
                       <div>
-                        <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                          Prompt Overrides
+                        <h4 className="
+                          text-sm font-semibold text-zinc-900
+
+                          dark:text-zinc-100
+                        ">
+                          Custom Prompts
                         </h4>
-                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                          Manage built-in prompt text from the UI without editing markdown files.
+                        <p className="
+                          mt-1 text-xs text-zinc-500
+
+                          dark:text-zinc-400
+                        ">
+                          Save reusable chat system prompts in settings and pick them from the header without editing markdown files.
                         </p>
                       </div>
 
                       <div className="mt-5">
-                        <SettingsFieldList
-                          fields={AI_PROMPT_FIELDS}
-                          values={values}
-                          revealedKeys={revealedKeys}
-                          onValueChange={setValue}
-                          onToggleReveal={toggleReveal}
+                        <CustomPromptsEditor
+                          value={getStringValue('custom_prompts')}
+                          onChange={(nextValue) => setValue('custom_prompts', nextValue)}
                         />
                       </div>
                     </div>
