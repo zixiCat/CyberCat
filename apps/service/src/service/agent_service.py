@@ -9,11 +9,6 @@ from service.config_service import config_service
 
 set_tracing_disabled(True)
 
-_TOOL_GUIDANCE = (
-    "Use the available tools whenever they are the most reliable path to completing the "
-    "request. Prefer calling a tool over describing a tool action."
-)
-
 
 class AgentService:
     """Creates configured agent runs for the desktop task pipeline."""
@@ -61,15 +56,8 @@ class AgentService:
         )
 
     def _build_instructions(self, system_prompt: str | None) -> str | None:
-        tools = get_agent_tools()
         prompt = (system_prompt or "").strip()
-        if not tools:
-            return prompt or None
-
-        if prompt:
-            return f"{prompt}\n\n{_TOOL_GUIDANCE}"
-
-        return _TOOL_GUIDANCE
+        return prompt or None
 
     def _supports_thinking(self) -> bool:
         return self.enable_thinking and "qwen" in self.model_name.lower()

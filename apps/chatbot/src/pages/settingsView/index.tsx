@@ -18,7 +18,6 @@ import { loadBackendJson, waitForBackend } from '../backendShared';
 import { useChatUiStore } from '../chatView/chatUiStore';
 import { PromptOption, SettingsBackupActionResult, SettingsBackupInfo } from '../chatView/types';
 import { BilibiliAuthPanel } from './BilibiliAuthPanel';
-import { CustomPromptsEditor } from './CustomPromptsEditor';
 import { FileIngestTargetsEditor } from './FileIngestTargetsEditor';
 import { SettingsBackupPanel } from './SettingsBackupPanel';
 import { SettingsFieldList } from './SettingsFieldList';
@@ -752,36 +751,6 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
                       onToggleReveal={toggleReveal}
                       showRequiredMarker
                     />
-
-                    <div className="
-                      border-t border-zinc-200/80 pt-6
-
-                      dark:border-white/10
-                    ">
-                      <div>
-                        <h4 className="
-                          text-sm font-semibold text-zinc-900
-
-                          dark:text-zinc-100
-                        ">
-                          Custom Prompts
-                        </h4>
-                        <p className="
-                          mt-1 text-xs text-zinc-500
-
-                          dark:text-zinc-400
-                        ">
-                          Save reusable chat system prompts in settings and pick them from the header without editing markdown files.
-                        </p>
-                      </div>
-
-                      <div className="mt-5">
-                        <CustomPromptsEditor
-                          value={getStringValue('custom_prompts')}
-                          onChange={(nextValue) => setValue('custom_prompts', nextValue)}
-                        />
-                      </div>
-                    </div>
                   </div>
                 </div>
               ) : resolvedActiveSection === 'bilibili' ? (
