@@ -36,13 +36,13 @@ class DesktopWebPage(QWebEnginePage):
         self,
         url: QUrl,
         navigation_type: QWebEnginePage.NavigationType,
-        is_main_frame: bool,
+        _is_main_frame: bool,
     ) -> bool:
         if should_open_externally(url, navigation_type):
             QDesktopServices.openUrl(url)
             return False
 
-        return super().acceptNavigationRequest(url, navigation_type, is_main_frame)
+        return super().acceptNavigationRequest(url, navigation_type, _is_main_frame)
 
     def createWindow(self, _window_type: QWebEnginePage.WebWindowType) -> QWebEnginePage:
         return ExternalLinkPage(self.profile(), self)
@@ -53,11 +53,12 @@ class ExternalLinkPage(QWebEnginePage):
         self,
         url: QUrl,
         navigation_type: QWebEnginePage.NavigationType,
-        is_main_frame: bool,
+        _is_main_frame: bool,
     ) -> bool:
         if url.scheme() in HTTP_URL_SCHEMES:
             QDesktopServices.openUrl(url)
 
+        # Clean up the temporary page created for popup/new-window requests.
         self.deleteLater()
         return False
 
