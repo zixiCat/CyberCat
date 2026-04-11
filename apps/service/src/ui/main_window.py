@@ -32,6 +32,8 @@ def should_open_externally(
 
 
 class DesktopWebPage(QWebEnginePage):
+    """Open clicked HTTP(S) links from the embedded desktop view in the system browser."""
+
     def acceptNavigationRequest(
         self,
         url: QUrl,
@@ -49,6 +51,8 @@ class DesktopWebPage(QWebEnginePage):
 
 
 class ExternalLinkPage(QWebEnginePage):
+    """Handle popup/new-window link requests by opening them externally and disposing the page."""
+
     def acceptNavigationRequest(
         self,
         url: QUrl,
