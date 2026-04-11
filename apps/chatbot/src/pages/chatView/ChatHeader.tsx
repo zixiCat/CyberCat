@@ -1,7 +1,6 @@
 import { Button, Segmented, Select, Tooltip } from 'antd';
 import {
   Columns,
-  FileText,
   Monitor,
   Moon,
   Music,
@@ -38,8 +37,6 @@ export const ChatHeader = ({
   reloadProfileSettings,
 }: ChatHeaderProps) => {
   const { theme, setTheme } = useTheme();
-  const availablePrompts = useChatUiStore((state) => state.availablePrompts);
-  const selectedPromptFile = useChatUiStore((state) => state.selectedPromptFile);
   const voiceOptions = useChatUiStore((state) => state.voiceOptions);
   const selectedVoice = useChatUiStore((state) => state.selectedVoice);
   const randomVoicePool = useChatUiStore((state) => state.randomVoicePool);
@@ -51,7 +48,6 @@ export const ChatHeader = ({
   const setUiState = useChatUiStore((state) => state.setUiState);
   const toggleSidebar = useChatUiStore((state) => state.toggleSidebar);
   const selectedSessionId = useChatSessionStore((state) => state.selectedSessionId);
-  const updateSessions = useChatSessionStore((state) => state.updateSessions);
   const clearCurrentChat = useChatSessionStore((state) => state.clearCurrentChat);
   const createNewSession = useChatSessionStore((state) => state.createNewSession);
   const isDesktopRuntime = Boolean(window.backend);
@@ -107,121 +103,95 @@ export const ChatHeader = ({
 
           min-[660px]:gap-1.5 min-[660px]:pr-11
         ">
-        <Select
-          size="small"
-          className="
-            w-24 text-[10px]
+          <Select
+            size="small"
+            className="
+              w-24 text-[10px]
 
-            sm:w-28
-          "
-          value={selectedPromptFile}
-          onChange={(file) => {
-            setUiState({ selectedPromptFile: file });
-            updateSessions((prev) =>
-              prev.map((s) => (s.id === selectedSessionId ? { ...s, systemPromptFile: file } : s)),
-            );
-            window.backend?.get_prompt_content?.(file).then((content: string) => {
-              setUiState({ selectedPromptContent: content });
-              window.backend?.set_active_system_prompt?.(content);
-            });
-          }}
-          options={availablePrompts.map((p) => ({
-            label: p.name,
-            value: p.file,
-          }))}
-          suffixIcon={<FileText size={10} className="opacity-40" />}
-          variant="borderless"
-        />
+              sm:w-32
+            "
+            value={selectedVoice}
+            onChange={(voice) => {
+              setUiState({ selectedVoice: voice });
+              window.backend?.set_active_voice?.(voice);
+            }}
+            options={voiceOptions.map((option) => ({
+              label: option.model === 'random' ? option.label : `${option.label}`,
+              value: option.value,
+            }))}
+            suffixIcon={<Music size={10} className="opacity-40" />}
+            variant="borderless"
+          />
 
-        <Select
-          size="small"
-          className="
-            w-24 text-[10px]
+          <RandomVoicePoolPopover
+            selectedVoice={selectedVoice}
+            randomVoicePool={randomVoicePool}
+            voiceOptions={voiceOptions}
+            onPoolChange={handleRandomVoicePoolChange}
+          />
 
-            sm:w-32
-          "
-          value={selectedVoice}
-          onChange={(voice) => {
-            setUiState({ selectedVoice: voice });
-            window.backend?.set_active_voice?.(voice);
-          }}
-          options={voiceOptions.map((option) => ({
-            label: option.model === 'random' ? option.label : `${option.label}`,
-            value: option.value,
-          }))}
-          suffixIcon={<Music size={10} className="opacity-40" />}
-          variant="borderless"
-        />
-
-        <RandomVoicePoolPopover
-          selectedVoice={selectedVoice}
-          randomVoicePool={randomVoicePool}
-          voiceOptions={voiceOptions}
-          onPoolChange={handleRandomVoicePoolChange}
-        />
-
-        <Segmented
-          size="small"
-          value={theme}
-          classNames={{
-            label: 'flex items-center',
-          }}
-          onChange={(value) => setTheme(value as 'light' | 'dark' | 'system')}
-          options={[
+          <Segmented
+            size="small"
+            value={theme}
+            classNames={{
+              label: 'flex items-center',
+            }}
+            onChange={(value) => setTheme(value as 'light' | 'dark' | 'system')}
+            options={[
             { value: 'light', icon: <Sun size={12} /> },
             { value: 'system', icon: <Monitor size={12} /> },
             { value: 'dark', icon: <Moon size={12} /> },
-          ]}
-          className="
-            bg-gray-100/50 text-[10px]
-
-            dark:bg-white/5
-          "
-        />
-
-        <Tooltip title={autoPlay ? 'Auto-play: ON' : 'Auto-play: OFF'} placement="bottom">
-          <Button
-            type="text"
-            size="small"
-            onClick={() => setAutoPlay(!autoPlay)}
-            icon={
-              autoPlay ? (
-                <Volume2 size={14} className="text-blue-500" />
-              ) : (
-                <VolumeX size={14} className="text-gray-400" />
-              )
-            }
+            ]}
             className="
-              hover:bg-gray-100
+              bg-gray-100/50 text-[10px]
 
-              dark:hover:bg-white/5
+              dark:bg-white/5
             "
           />
-        </Tooltip>
 
-        <div
-          className="
-            h-4 w-px bg-gray-200
-
-            dark:bg-white/10
-          "
-        />
-
-        {isTaskRunning && (
-          <Tooltip title="Stop Response" placement="bottom">
+          <Tooltip title={autoPlay ? 'Auto-play: ON' : 'Auto-play: OFF'} placement="bottom">
             <Button
               type="text"
               size="small"
-              onClick={stopStreaming}
-              icon={<Square size={14} fill="currentColor" />}
+              onClick={() => setAutoPlay(!autoPlay)}
+              icon={
+                autoPlay ? (
+                  <Volume2 size={14} className="text-blue-500" />
+                ) : (
+                  <VolumeX size={14} className="text-gray-400" />
+                )
+              }
               className="
-                animate-pulse text-red-500
+                hover:bg-gray-100
 
-                hover:bg-red-50
+                dark:hover:bg-white/5
               "
             />
           </Tooltip>
-        )}
+
+          <div
+            className="
+              h-4 w-px bg-gray-200
+
+              dark:bg-white/10
+            "
+          />
+
+          {isTaskRunning && (
+            <Tooltip title="Stop Response" placement="bottom">
+              <Button
+                type="text"
+                size="small"
+                onClick={stopStreaming}
+                icon={<Square size={14} fill="currentColor" />}
+                className="
+                  animate-pulse text-red-500
+
+                  hover:bg-red-50
+                "
+              />
+            </Tooltip>
+          )}
 
         <Tooltip title="Clear Current Chat" placement="left">
           <Button

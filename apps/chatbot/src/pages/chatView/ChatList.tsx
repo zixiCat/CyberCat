@@ -25,12 +25,12 @@ const EmptyChatState = memo(() => {
       ? 'Select a chat from history or create a new session to continue.'
       : 'Welcome to CyberCat. Start your first session to begin.';
 
-  const paragraphs =  [
-          'Create a session with the + button, then send your first message below.',
-          'Use Enter to send. Use Shift+Enter if you want a new line.',
-          'Press Ctrl+Shift+0 to play pronunciation audio for selected text.',
-          'You can change prompt style, voice, and auto-play from the top bar.',
-        ];
+  const paragraphs = [
+    'Create a session with the + button, then send your first message below.',
+    'Use Enter to send. Use Shift+Enter if you want a new line.',
+    'Press Ctrl+Shift+0 to play pronunciation audio for selected text.',
+    'You can change voice and auto-play from the top bar.',
+  ];
 
   return (
     <div className="flex w-full justify-center px-5 py-8 text-center">
