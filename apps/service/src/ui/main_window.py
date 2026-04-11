@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QRect, QSettings, QUrl, Qt
-from PySide6.QtGui import QCursor
+from PySide6.QtGui import QCursor, QDesktopServices
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEngineSettings
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QMainWindow
 
@@ -20,6 +20,51 @@ if sys.platform == "win32":
     SWP_NOSIZE = 0x0001
     SWP_NOZORDER = 0x0004
     SWP_FRAMECHANGED = 0x0020
+
+HTTP_URL_SCHEMES = {"http", "https"}
+NAVIGATION_TYPE_LINK_CLICKED = QWebEnginePage.NavigationType.NavigationTypeLinkClicked
+
+
+def should_open_externally(
+    url: QUrl, navigation_type: QWebEnginePage.NavigationType
+) -> bool:
+    return navigation_type == NAVIGATION_TYPE_LINK_CLICKED and url.scheme() in HTTP_URL_SCHEMES
+
+
+class DesktopWebPage(QWebEnginePage):
+    """Open clicked HTTP(S) links from the embedded desktop view in the system browser."""
+
+    def acceptNavigationRequest(
+        self,
+        url: QUrl,
+        navigation_type: QWebEnginePage.NavigationType,
+        _is_main_frame: bool,
+    ) -> bool:
+        if should_open_externally(url, navigation_type):
+            QDesktopServices.openUrl(url)
+            return False
+
+        return super().acceptNavigationRequest(url, navigation_type, _is_main_frame)
+
+    def createWindow(self, _window_type: QWebEnginePage.WebWindowType) -> QWebEnginePage:
+        return ExternalLinkPage(self.profile(), self)
+
+
+class ExternalLinkPage(QWebEnginePage):
+    """Handle popup/new-window link requests by opening them externally and disposing the page."""
+
+    def acceptNavigationRequest(
+        self,
+        url: QUrl,
+        navigation_type: QWebEnginePage.NavigationType,
+        _is_main_frame: bool,
+    ) -> bool:
+        if url.scheme() in HTTP_URL_SCHEMES:
+            QDesktopServices.openUrl(url)
+
+        # Clean up the temporary page created for popup/new-window requests.
+        self.deleteLater()
+        return False
 
 
 class MainWindow(QMainWindow):
@@ -38,6 +83,7 @@ class MainWindow(QMainWindow):
         self._restore_window_geometry()
 
         self.browser = QWebEngineView()
+        self.browser.setPage(DesktopWebPage(parent=self.browser))
         self.browser.setAcceptDrops(False)
         self.browser.installEventFilter(self)
         self.setCentralWidget(self.browser)
