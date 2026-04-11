@@ -859,7 +859,7 @@ class FileIngestService:
 
 @lru_cache(maxsize=1)
 def _load_prompt_template() -> str:
-    prompt_path = Path(__file__).resolve().parents[1] / "prompts" / "FileIngest.md"
+    prompt_path = Path(__file__).resolve().parents[1] / "prompts" / "internal" / "FileIngest.md"
     return prompt_path.read_text(encoding="utf-8")
 
 

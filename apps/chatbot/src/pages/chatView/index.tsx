@@ -11,7 +11,7 @@ import {
 } from './chatShared';
 import { useChatUiStore } from './chatUiStore';
 import { ChatViewLayout } from './ChatViewLayout';
-import { VoiceOption } from './types';
+import { PromptOption, VoiceOption } from './types';
 import { useChatAudio } from './useChatAudio';
 import { useChatBootstrap } from './useChatBootstrap';
 import { useChatSessions } from './useChatSessions';
@@ -26,6 +26,7 @@ interface SaveSettingsResult {
 }
 
 export const ChatView = () => {
+  const availablePrompts = useChatUiStore((state) => state.availablePrompts);
   const selectedPromptFile = useChatUiStore((state) => state.selectedPromptFile);
   const selectedPromptContent = useChatUiStore((state) => state.selectedPromptContent);
   const isTaskRunning = useChatUiStore((state) => state.isTaskRunning);
@@ -38,6 +39,7 @@ export const ChatView = () => {
     selectedSessionId,
     createNewSession,
     ensureActiveSessionId,
+    updateSessions,
   } = useChatSessions();
   const {
     playAudio,
@@ -88,6 +90,21 @@ export const ChatView = () => {
     }
   }, [setUiState]);
 
+  const resolvePromptSelection = useCallback(
+    (prompts: PromptOption[], preferredPromptFile: string) => {
+      if (!prompts.length) {
+        return null;
+      }
+
+      return (
+        prompts.find((prompt) => prompt.file === preferredPromptFile) ??
+        prompts.find((prompt) => prompt.file === 'Default.md') ??
+        prompts[0]
+      );
+    },
+    [],
+  );
+
   const reloadProfileSettings = useCallback(async () => {
     const backend = window.backend;
     if (!backend?.get_settings || !backend.get_active_voice || !backend.get_voice_options) {
@@ -95,13 +112,16 @@ export const ChatView = () => {
     }
 
     try {
-      const [settings, activeVoice, parsedVoiceOptions] = await Promise.all([
+      const [settings, activeVoice, parsedVoiceOptions, prompts] = await Promise.all([
         loadBackendJson<Record<string, string | boolean>>(
           () => backend.get_settings?.(),
           'Profile settings',
         ),
         loadBackendJson<{ voice: string }>(() => backend.get_active_voice?.(), 'Active voice'),
         loadBackendJson<VoiceOption[]>(() => backend.get_voice_options?.(), 'Voice options'),
+        backend.get_available_prompts
+          ? loadBackendJson<PromptOption[]>(() => backend.get_available_prompts?.(), 'Available prompts')
+          : Promise.resolve(availablePrompts),
       ]);
 
       const modelName = typeof settings.openai_model === 'string' ? settings.openai_model : '';
@@ -111,8 +131,10 @@ export const ChatView = () => {
       const fileIngestEnabled = Boolean(
         settings.feature_file_ingest_enabled && backend.start_file_ingest,
       );
+      const resolvedPrompt = resolvePromptSelection(prompts, selectedPromptFile);
 
       setUiState({
+        availablePrompts: prompts,
         voiceOptions: parsedVoiceOptions,
         selectedVoice: activeVoice.voice || 'auto',
         randomVoicePool: storedRandomVoicePool,
@@ -120,22 +142,53 @@ export const ChatView = () => {
         fileIngestTargets,
         thinkingSupported: supported,
         thinkingEnabled: supported && Boolean(settings[THINKING_FIELD_KEY]),
+        selectedPromptFile: resolvedPrompt?.file ?? '',
+        ...(resolvedPrompt ? {} : { selectedPromptContent: '' }),
       });
-      await syncSelectedPromptContent(selectedPromptFile);
+
+      if (resolvedPrompt) {
+        await syncSelectedPromptContent(resolvedPrompt.file);
+      } else {
+        backend.set_active_system_prompt?.('');
+      }
     } catch (error) {
       console.error('Failed to reload profile settings:', error);
     }
-  }, [selectedPromptFile, setUiState, syncSelectedPromptContent]);
+  }, [availablePrompts, resolvePromptSelection, selectedPromptFile, setUiState, syncSelectedPromptContent]);
 
   useEffect(() => {
     const session = sessions.find((s) => s.id === selectedSessionId);
-    if (!session?.systemPromptFile || session.systemPromptFile === selectedPromptFile) {
+    if (!session?.systemPromptFile) {
       return;
     }
 
-    setUiState({ selectedPromptFile: session.systemPromptFile });
-    void syncSelectedPromptContent(session.systemPromptFile);
-  }, [selectedPromptFile, selectedSessionId, sessions, setUiState, syncSelectedPromptContent]);
+    const resolvedSessionPrompt = availablePrompts.some(
+      (prompt) => prompt.file === session.systemPromptFile,
+    )
+      ? session.systemPromptFile
+      : resolvePromptSelection(availablePrompts, session.systemPromptFile)?.file;
+
+    if (!resolvedSessionPrompt) {
+      return;
+    }
+
+    if (session.systemPromptFile !== resolvedSessionPrompt) {
+      updateSessions((prev) =>
+        prev.map((currentSession) =>
+          currentSession.id === selectedSessionId
+            ? { ...currentSession, systemPromptFile: resolvedSessionPrompt }
+            : currentSession,
+        ),
+      );
+    }
+
+    if (resolvedSessionPrompt === selectedPromptFile) {
+      return;
+    }
+
+    setUiState({ selectedPromptFile: resolvedSessionPrompt });
+    void syncSelectedPromptContent(resolvedSessionPrompt);
+  }, [availablePrompts, resolvePromptSelection, selectedPromptFile, selectedSessionId, sessions, setUiState, syncSelectedPromptContent, updateSessions]);
 
   const scrollTaskToTop = useCallback((taskId: number, behavior: ScrollBehavior = 'smooth') => {
     const container = chatScrollContainerRef.current;

@@ -21,50 +21,11 @@ DEFAULT_FILE_INGEST_PURPOSE = (
 )
 LEGACY_FILE_INGEST_TARGET_FILE_KEY = "file_ingest_target_file"
 LEGACY_FILE_INGEST_TARGET_PURPOSE_KEY = "file_ingest_target_purpose"
-LANG_ASS_PROMPT_KEY = "lang_ass_prompt"
-LANG_ASS_PROMPT_FILE = "LangAss.md"
-DEFAULT_LANG_ASS_PROMPT = """You are my English language assistant. Your tasks are follows:
-
-1. Check my provided English sentences for any grammar, syntax, or spelling mistakes
-2. Provide corrections for any mistakes you find, and use **bold** for words that need to be corrected
-3. If The "Corrected" sentence is not natural, give me "Suggestion" which is more natural, authentic and common phrasings that express the same meaning
-4. Provide multi "Short for Chat" sentences that are concise and can be easily used in casual conversations, while still conveying the same meaning
-5. Provide "Similar" sentences that convey the same/similar meaning with different wording
-6. If I provide Chinese/Pinyin sentences, translate them into English
-7. And use more simple words to express the same meaning in "Simple", so that I can understand the meaning more easily
-8. Provide a brief "Explanation" of the original sentence, so that I can understand the meaning of the original sentence more clearly
-
-The following are some response examples:
-
-```
-- Original: There is something wrong with my keyborad.
-- Corrected:  There is something wrong with my **keyboard**
-- Suggestion: There is something wrong with my keyboard
-- Short for Chat: Something wrong with my keyboard / My keyboard not working
-- Similar: My keyboard is acting up / My keyboard is malfunctioning
-- Simple: My keyboard is broken
-- Explanation: The origin sentence means that the keyboard is not working properly.
-```
-
-```
-- Original: no poblem
-- Corrected: no **problem**
-- Suggestion: No problem
-- Short for Chat: No problem
-- Similar: It's all good
-- Simple: It's fine
-- Explanation: it' is a common phrase used to indicate that everything is okay or that there are no issues.
-```
-
-```
-- Original: 关闭页面
-- English: Close the page
-- Suggestion: Close the webpage
-- Short for Chat: Close the page
-- Similar: Shut down the page
-- Simple: Close the page
-- Explanation: This sentence is a command to close a webpage or browser tab.
-```"""
+LEGACY_CUSTOM_PROMPT_KEY = "custom_prompt"
+CUSTOM_PROMPTS_KEY = "custom_prompts"
+LEGACY_CUSTOM_PROMPT_FILE = "Custom.md"
+DEFAULT_CUSTOM_PROMPT_NAME = "Custom"
+DEFAULT_CUSTOM_PROMPT_NAME_PREFIX = "Custom Prompt"
 
 
 def _default_file_ingest_targets_json(
@@ -162,6 +123,134 @@ def _normalize_file_ingest_targets_json(raw_value: Any) -> str:
     return json.dumps(normalized_targets, ensure_ascii=False)
 
 
+def _create_custom_prompt_record(
+    index: int,
+    *,
+    prompt_id: Any = None,
+    name: Any = None,
+    content: Any = None,
+) -> dict[str, str]:
+    normalized_id = "".join(
+        character
+        for character in str(prompt_id or "").strip()
+        if character.isalnum() or character in {"-", "_"}
+    )
+    prompt_name = str(name or "").strip() or f"{DEFAULT_CUSTOM_PROMPT_NAME_PREFIX} {index}"
+    return {
+        "id": normalized_id or f"custom-{uuid.uuid4().hex[:8]}",
+        "name": prompt_name,
+        "content": str(content or ""),
+    }
+
+
+def _collect_legacy_custom_prompt_values(raw_items: Any) -> list[str]:
+    prompt_entries: list[tuple[int, str, str]] = []
+
+    for raw_key, raw_value in raw_items:
+        normalized_key = str(raw_key or "").strip()
+        if not normalized_key:
+            continue
+
+        lowered_key = normalized_key.lower()
+        if lowered_key != LEGACY_CUSTOM_PROMPT_KEY:
+            continue
+
+        prompt_content = str(raw_value or "").strip()
+        if not prompt_content:
+            continue
+
+        prompt_entries.append(
+            (
+                0,
+                lowered_key,
+                prompt_content,
+            )
+        )
+
+    prompt_entries.sort(key=lambda item: (item[0], item[1]))
+
+    deduped_prompts: list[str] = []
+    seen_contents: set[str] = set()
+    for _, _, prompt_content in prompt_entries:
+        if prompt_content in seen_contents:
+            continue
+        deduped_prompts.append(prompt_content)
+        seen_contents.add(prompt_content)
+
+    return deduped_prompts
+
+
+def _default_custom_prompts_json(*legacy_prompts: Any) -> str:
+    normalized_prompts = [
+        str(raw_prompt or "").strip()
+        for raw_prompt in legacy_prompts
+        if str(raw_prompt or "").strip()
+    ]
+    if not normalized_prompts:
+        return json.dumps([], ensure_ascii=False)
+
+    return json.dumps(
+        [
+            _create_custom_prompt_record(
+                index,
+                prompt_id="custom-default" if index == 1 else None,
+                name=DEFAULT_CUSTOM_PROMPT_NAME if index == 1 else None,
+                content=prompt_content,
+            )
+            for index, prompt_content in enumerate(normalized_prompts, start=1)
+        ],
+        ensure_ascii=False,
+    )
+
+
+def _normalize_custom_prompts_json(raw_value: Any, *legacy_prompts: Any) -> str:
+    if raw_value is None:
+        return _default_custom_prompts_json(*legacy_prompts)
+
+    payload: Any = raw_value
+    if isinstance(raw_value, str):
+        stripped = raw_value.strip()
+        if not stripped:
+            return _default_custom_prompts_json(*legacy_prompts)
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Custom prompts must be valid JSON.") from exc
+
+    if not isinstance(payload, list):
+        raise ValueError("Custom prompts must be saved as a list.")
+
+    normalized_prompts = []
+    for index, item in enumerate(payload, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Custom prompt #{index} is invalid.")
+
+        normalized_prompts.append(
+            _create_custom_prompt_record(
+                index,
+                prompt_id=item.get("id"),
+                name=item.get("name"),
+                content=item.get("content"),
+            )
+        )
+
+    return json.dumps(normalized_prompts, ensure_ascii=False)
+
+
+def load_custom_prompts(raw_value: Any, *legacy_prompts: Any) -> list[dict[str, str]]:
+    normalized_value = _normalize_custom_prompts_json(raw_value, *legacy_prompts)
+    payload = json.loads(normalized_value)
+    return [
+        {
+            "id": str(item.get("id") or ""),
+            "name": str(item.get("name") or ""),
+            "content": str(item.get("content") or ""),
+        }
+        for item in payload
+        if isinstance(item, dict)
+    ]
+
+
 # All recognised setting keys with their env-var names and defaults.
 _FIELDS: dict[str, tuple[str, Any]] = {
     # key            -> (ENV_VAR_NAME, default_value)
@@ -170,10 +259,7 @@ _FIELDS: dict[str, tuple[str, Any]] = {
     "bilibili_cookie": ("BILIBILI_COOKIE", ""),
     "bilibili_url": ("BILIBILI_URL", ""),
     "file_ingest_targets": ("FILE_INGEST_TARGETS", _default_file_ingest_targets_json()),
-    "lang_ass_prompt": (
-        "LANG_ASS_PROMPT",
-        DEFAULT_LANG_ASS_PROMPT,
-    ),
+    "custom_prompts": ("CUSTOM_PROMPTS", _default_custom_prompts_json()),
     "qwen_api_key": ("QWEN_API_KEY", ""),
     "qwen_asr_base_url": (
         "QWEN_ASR_BASE_URL",
@@ -196,7 +282,7 @@ FEATURE_FIELD_KEYS: dict[str, str] = {
 }
 
 REQUIRED_KEYS = ["qwen_api_key", "openai_api_key", "openai_base_url", "openai_model"]
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 DEFAULT_PROFILE_ID = "default"
 DEFAULT_PROFILE_NAME = "Default"
 LOCKED_QWEN_TTS_MODEL = "qwen-tts-latest"
@@ -225,9 +311,6 @@ def _default_settings() -> dict[str, Any]:
             ConfigService._coerce_value(env_value, default) if env_value is not None else default
         )
 
-    if not str(settings.get(LANG_ASS_PROMPT_KEY) or "").strip():
-        settings[LANG_ASS_PROMPT_KEY] = DEFAULT_LANG_ASS_PROMPT
-
     if os.getenv("FEATURE_BILIBILI_ENABLED") is None and _has_legacy_bilibili_settings(settings):
         settings["feature_bilibili_enabled"] = True
 
@@ -238,6 +321,11 @@ def _default_settings() -> dict[str, Any]:
             os.getenv("FILE_INGEST_TARGET_FILE"),
             os.getenv("FILE_INGEST_TARGET_PURPOSE"),
         )
+
+    if os.getenv("CUSTOM_PROMPTS") is None:
+        legacy_prompt_values = _collect_legacy_custom_prompt_values(os.environ.items())
+        if legacy_prompt_values:
+            settings[CUSTOM_PROMPTS_KEY] = _default_custom_prompts_json(*legacy_prompt_values)
 
     return settings
 
@@ -294,6 +382,9 @@ class ConfigService:
             if key in _FIELDS:
                 if key == "file_ingest_targets":
                     active_settings[key] = _normalize_file_ingest_targets_json(value)
+                    continue
+                if key == CUSTOM_PROMPTS_KEY:
+                    active_settings[key] = _normalize_custom_prompts_json(value)
                     continue
                 active_settings[key] = self._coerce_setting_value(key, value, _FIELDS[key][1])
 
@@ -485,8 +576,8 @@ class ConfigService:
         coerced_value = ConfigService._coerce_value(value, default)
         if key == "qwen_tts_model":
             return LOCKED_QWEN_TTS_MODEL
-        if key == LANG_ASS_PROMPT_KEY and not str(coerced_value).strip():
-            return DEFAULT_LANG_ASS_PROMPT
+        if key == CUSTOM_PROMPTS_KEY:
+            return _normalize_custom_prompts_json(coerced_value)
         return coerced_value
 
     def _active_settings(self) -> dict[str, Any]:
@@ -525,10 +616,13 @@ class ConfigService:
             return isinstance(payload.get("profiles"), (dict, list))
 
         legacy_keys = {
+            LEGACY_CUSTOM_PROMPT_KEY,
             LEGACY_FILE_INGEST_TARGET_FILE_KEY,
             LEGACY_FILE_INGEST_TARGET_PURPOSE_KEY,
         }
-        return any(key in payload for key in set(_FIELDS) | legacy_keys)
+        return any(key in payload for key in set(_FIELDS) | legacy_keys) or bool(
+            _collect_legacy_custom_prompt_values(payload.items())
+        )
 
     def _create_restore_snapshot(self) -> Path:
         config_path = _config_path()
@@ -610,6 +704,14 @@ class ConfigService:
                     saved_settings.get(LEGACY_FILE_INGEST_TARGET_FILE_KEY),
                     saved_settings.get(LEGACY_FILE_INGEST_TARGET_PURPOSE_KEY),
                 )
+
+            if (
+                CUSTOM_PROMPTS_KEY not in saved_settings
+                or not str(saved_settings.get(CUSTOM_PROMPTS_KEY) or "").strip()
+            ):
+                legacy_prompt_values = _collect_legacy_custom_prompt_values(saved_settings.items())
+                if legacy_prompt_values:
+                    merged[CUSTOM_PROMPTS_KEY] = _default_custom_prompts_json(*legacy_prompt_values)
 
         return merged
 
