@@ -9,6 +9,13 @@ from service.config_service import config_service
 
 set_tracing_disabled(True)
 
+INTERNAL_AGENT_INSTRUCTIONS = """You are running inside the CyberCat desktop app.
+
+When the user asks for an app capability, prefer the corresponding built-in tool over a generic explanation.
+If the user asks to download from Bilibili, save Bilibili content, or explicitly mentions CyberCat's Bilibili feature, call the Bilibili tool first instead of refusing generically.
+If a tool reports a missing setting or disabled feature, briefly explain that exact app-specific blocker.
+"""
+
 
 class AgentService:
     """Creates configured agent runs for the desktop task pipeline."""
@@ -56,8 +63,13 @@ class AgentService:
         )
 
     def _build_instructions(self, system_prompt: str | None) -> str | None:
+        sections = [INTERNAL_AGENT_INSTRUCTIONS.strip()]
         prompt = (system_prompt or "").strip()
-        return prompt or None
+        if prompt:
+            sections.append(prompt)
+
+        combined_prompt = "\n\n".join(section for section in sections if section)
+        return combined_prompt or None
 
     def _supports_thinking(self) -> bool:
         return self.enable_thinking and "qwen" in self.model_name.lower()
