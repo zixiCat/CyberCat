@@ -24,14 +24,6 @@ import {
 const ZERO_DELAY_MS = 0;
 const ZERO_PROMPTS = 0;
 
-const normalizeTaskLogSource = (source: string): TaskLogSource => {
-  if (source === 'stdout' || source === 'stderr' || source === 'tool') {
-    return source;
-  }
-
-  return 'status';
-};
-
 interface UseChatBootstrapOptions {
   finalizePendingSegments: () => void;
   handleSegmentFinished: (segmentId: number) => void;
@@ -50,8 +42,20 @@ export const useChatBootstrap = ({
   const cancelledRef = useRef(false);
   const pendingTextChunksRef = useRef<Map<number, string>>(new Map());
   const pendingTextFlushTimerRef = useRef<number | null>(null);
-  const pendingTaskLogsRef = useRef<Array<{ taskId: number; source: TaskLogSource; message: string; timestamp: string }>>([]);
-  const pendingTaskLogFlushTimerRef = useRef<number | null>(null);
+  const pendingLogEntriesRef = useRef<Array<{ taskId: number; source: string; message: string }>>([]);
+  const pendingLogFlushTimerRef = useRef<number | null>(null);
+
+  const flushPendingLogs = () => {
+    if (pendingLogFlushTimerRef.current !== null) {
+      window.clearTimeout(pendingLogFlushTimerRef.current);
+      pendingLogFlushTimerRef.current = null;
+    }
+    if (pendingLogEntriesRef.current.length === 0) return;
+    const batch = pendingLogEntriesRef.current.splice(0);
+    useChatUiStore.getState().batchAppendTaskLog(
+      batch.map((e) => ({ taskId: e.taskId, source: e.source as TaskLogSource, message: e.message })),
+    );
+  };
 
   const flushPendingTextChunks = () => {
     if (pendingTextFlushTimerRef.current !== null) {
@@ -149,38 +153,6 @@ export const useChatBootstrap = ({
     }, ZERO_DELAY_MS);
   };
 
-  const flushPendingTaskLogs = () => {
-    if (pendingTaskLogFlushTimerRef.current !== null) {
-      window.clearTimeout(pendingTaskLogFlushTimerRef.current);
-      pendingTaskLogFlushTimerRef.current = null;
-    }
-
-    if (pendingTaskLogsRef.current.length === ZERO_PROMPTS) {
-      return;
-    }
-
-    const pendingEntries = pendingTaskLogsRef.current;
-    pendingTaskLogsRef.current = [];
-    useChatUiStore.getState().appendTaskLogEntries(pendingEntries);
-  };
-
-  const queueTaskLogEntry = (entry: {
-    taskId: number;
-    source: TaskLogSource;
-    message: string;
-    timestamp: string;
-  }) => {
-    pendingTaskLogsRef.current.push(entry);
-
-    if (pendingTaskLogFlushTimerRef.current !== null) {
-      return;
-    }
-
-    pendingTaskLogFlushTimerRef.current = window.setTimeout(() => {
-      flushPendingTaskLogs();
-    }, ZERO_DELAY_MS);
-  };
-
   useMount(() => {
     cancelledRef.current = false;
 
@@ -196,8 +168,6 @@ export const useChatBootstrap = ({
 
       const signalHandlers: ChatBackendSignalHandlers = {
         onTaskStarted: (taskId: number, prompt: string) => {
-          flushPendingTaskLogs();
-          useChatUiStore.getState().beginTaskLog(taskId);
           useChatUiStore.getState().setUiState({ isTaskRunning: true });
           const nowStr = formatTimestamp();
 
@@ -222,24 +192,24 @@ export const useChatBootstrap = ({
         onSegmentTextChunk: (segmentId: number, chunk: string) => {
           queueTextChunk(segmentId, chunk);
         },
-        onTaskLogEntry: (taskId: number, source: string, message: string) => {
-          queueTaskLogEntry({
-            taskId,
-            source: normalizeTaskLogSource(source),
-            message,
-            timestamp: formatTimestamp(),
-          });
-        },
         onSegmentAudioChunk: (segmentId: number, audioBase64: string) => {
           processAudioChunk(segmentId, audioBase64);
         },
         onSegmentFinished: (segmentId: number) => {
           handleSegmentFinished(segmentId);
         },
+        onTaskLog: (taskId: number, source: string, message: string) => {
+          pendingLogEntriesRef.current.push({ taskId, source, message });
+          if (pendingLogFlushTimerRef.current !== null) return;
+          pendingLogFlushTimerRef.current = window.setTimeout(() => {
+            pendingLogFlushTimerRef.current = null;
+            flushPendingLogs();
+          }, 0);
+        },
         onTaskFinished: () => {
           flushPendingTextChunks();
-          flushPendingTaskLogs();
-          useChatUiStore.getState().setUiState({ isTaskRunning: false });
+          flushPendingLogs();
+          useChatUiStore.getState().setUiState({ isTaskRunning: false, activeTaskLogTaskId: null });
           finalizePendingSegments();
         },
         onFileIngestStarted: (payloadJson: string) => {
@@ -366,7 +336,7 @@ export const useChatBootstrap = ({
   useUnmount(() => {
     cancelledRef.current = true;
     flushPendingTextChunks();
-    flushPendingTaskLogs();
+    flushPendingLogs();
     window.cyberCatBackendSignalHandlers = {};
   });
 };

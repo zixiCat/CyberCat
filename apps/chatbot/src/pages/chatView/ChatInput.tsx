@@ -30,6 +30,10 @@ export const ChatInput = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.altKey && e.key.length === 1) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();

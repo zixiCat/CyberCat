@@ -13,15 +13,6 @@ export interface Task {
   timestamp: string;
 }
 
-export type TaskLogSource = 'status' | 'tool' | 'stdout' | 'stderr';
-
-export interface TaskLogEntry {
-  taskId: number;
-  source: TaskLogSource;
-  message: string;
-  timestamp: string;
-}
-
 export interface Session {
   id: string;
   timestamp: string;
@@ -137,6 +128,15 @@ export interface FileIngestResult {
   error?: string;
 }
 
+export type TaskLogSource = 'status' | 'tool' | 'stdout' | 'stderr';
+
+export interface TaskLogEntry {
+  taskId: number;
+  source: TaskLogSource;
+  message: string;
+  timestamp: string;
+}
+
 export interface SignalHandler<TArgs extends unknown[] = unknown[]> {
   connect: (callback: (...args: TArgs) => void) => void;
 }
@@ -201,7 +201,7 @@ export interface BackendBridge {
 
 export interface ChatBackendSignalHandlers {
   onTaskStarted?: (taskId: number, prompt: string) => void;
-  onTaskLogEntry?: (taskId: number, source: string, message: string) => void;
+  onTaskLog?: (taskId: number, source: string, message: string) => void;
   onSegmentTextChunk?: (segmentId: number, chunk: string) => void;
   onSegmentAudioChunk?: (segmentId: number, audioBase64: string) => void;
   onSegmentFinished?: (segmentId: number) => void;
