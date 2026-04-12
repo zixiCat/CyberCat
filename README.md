@@ -40,8 +40,8 @@ For repository helper scripts and other advanced details, see [apps/service/src/
 
 ## Useful Hotkeys
 
-- Hold `z+x` to record voice, then confirm before sending
-- Hold `x+c` to record voice and send immediately
+- Hold `alt+z` to record voice, then confirm before sending
+- Hold `alt+x` to record voice and send immediately
 - Press `Ctrl+Shift+0` to speak selected text
 
 ## Troubleshooting

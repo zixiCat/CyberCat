@@ -1,8 +1,8 @@
 """Background voice recording triggered by global hotkeys.
 
 Hotkeys:
-- ``z+x`` → Record, transcribe, show toast for confirmation
-- ``x+c`` → Record, transcribe, start task immediately
+- ``alt+z`` → Record, transcribe, show toast for confirmation
+- ``alt+x`` → Record, transcribe, start task immediately
 """
 
 import time
@@ -14,11 +14,15 @@ from win11toast import toast
 from utils.record_voice import recorder
 from service.qwen_service import qwen_service
 
-_HOTKEY_NOTIFY = {keyboard.KeyCode.from_char("z"), keyboard.KeyCode.from_char("x")}
-_HOTKEY_DIRECT = {keyboard.KeyCode.from_char("x"), keyboard.KeyCode.from_char("c")}
+type TrackedKey = keyboard.Key | keyboard.KeyCode
+type HotkeyChord = tuple[frozenset[TrackedKey], ...]
 
-HOTKEY_NOTIFY_LABEL = "z+x"
-HOTKEY_DIRECT_LABEL = "x+c"
+_ALT_KEYS = frozenset({keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r})
+_HOTKEY_NOTIFY: HotkeyChord = (_ALT_KEYS, frozenset({keyboard.KeyCode.from_char("z")}))
+_HOTKEY_DIRECT: HotkeyChord = (_ALT_KEYS, frozenset({keyboard.KeyCode.from_char("x")}))
+
+HOTKEY_NOTIFY_LABEL = "alt+z"
+HOTKEY_DIRECT_LABEL = "alt+x"
 _STOP_BUTTON_TEXT = "Did you say that? I'll do it right now. Click to stop."
 
 
@@ -27,7 +31,7 @@ class VoiceListener:
 
     def __init__(self, backend_service) -> None:
         self._backend = backend_service
-        self._pressed: set = set()
+        self._pressed: set[TrackedKey] = set()
         self._lock = threading.Lock()
 
     def start(self) -> None:
@@ -49,9 +53,9 @@ class VoiceListener:
         with self._lock:
             self._pressed.discard(key)
 
-    def _is_hotkey_active(self, hotkey_set: set) -> bool:
+    def _is_hotkey_active(self, hotkey: HotkeyChord) -> bool:
         with self._lock:
-            return hotkey_set.issubset(self._pressed)
+            return all(any(key in self._pressed for key in group) for group in hotkey)
 
     # ── Main loop ─────────────────────────────────────────────────
 
@@ -61,28 +65,28 @@ class VoiceListener:
         print(f"Hold '{HOTKEY_DIRECT_LABEL}' for immediate AI task")
 
         while True:
-            hotkey_set = self._detect_active_hotkey()
-            if hotkey_set is None:
+            hotkey = self._detect_active_hotkey()
+            if hotkey is None:
                 time.sleep(0.01)
                 continue
 
-            is_direct = hotkey_set is _HOTKEY_DIRECT
-            audio_file = self._record_while_held(hotkey_set)
+            is_direct = hotkey is _HOTKEY_DIRECT
+            audio_file = self._record_while_held(hotkey)
             if not audio_file:
                 continue
 
             self._transcribe_and_dispatch(audio_file, direct=is_direct)
 
-    def _detect_active_hotkey(self) -> set | None:
+    def _detect_active_hotkey(self) -> HotkeyChord | None:
         if self._is_hotkey_active(_HOTKEY_NOTIFY):
             return _HOTKEY_NOTIFY
         if self._is_hotkey_active(_HOTKEY_DIRECT):
             return _HOTKEY_DIRECT
         return None
 
-    def _record_while_held(self, hotkey_set: set) -> str | None:
+    def _record_while_held(self, hotkey: HotkeyChord) -> str | None:
         recorder.start()
-        while self._is_hotkey_active(hotkey_set):
+        while self._is_hotkey_active(hotkey):
             time.sleep(0.01)
         return recorder.stop()
 
@@ -100,7 +104,7 @@ class VoiceListener:
             return
 
         if direct or text.lower().strip().startswith("cybercat"):
-            label = "x+c direct" if direct else "'cybercat' keyword"
+            label = f"{HOTKEY_DIRECT_LABEL} direct" if direct else "'cybercat' keyword"
             print(f"Immediate task via {label}.")
             self._backend.start_task(text)
             return
