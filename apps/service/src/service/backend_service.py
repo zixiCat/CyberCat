@@ -66,6 +66,7 @@ class BackendService(QObject):
 
     # ── Signals forwarded from TaskService ────────────────────────
     task_started = Signal(int, str)
+    task_log = Signal(int, str, str)
     segment_text_chunk = Signal(int, str)
     segment_audio_chunk = Signal(int, str)
     segment_finished = Signal(int)
@@ -377,6 +378,7 @@ class BackendService(QObject):
     def _connect_task_signals(self) -> None:
         """Forward TaskService signals through this QObject."""
         task_service.task_started.connect(self.task_started)
+        task_service.task_log.connect(self.task_log)
         task_service.segment_text_chunk.connect(self.segment_text_chunk)
         task_service.segment_audio_chunk.connect(self.segment_audio_chunk)
         task_service.segment_finished.connect(self._on_segment_finished)

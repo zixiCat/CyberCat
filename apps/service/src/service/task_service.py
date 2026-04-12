@@ -22,12 +22,14 @@ from PySide6.QtCore import QObject, Signal
 from service.agent_service import agent_service
 from service.config_service import config_service
 from service.qwen_tts_service import decode_audio_chunk, qwen_tts_service
+from service.task_log_service import bind_task_log_emitter, emit_task_log
 
 MAX_HISTORY_MESSAGES = 20
 
 
 class TaskService(QObject):
     task_started = Signal(int, str)
+    task_log = Signal(int, str, str)
     segment_text_chunk = Signal(int, str)
     segment_audio_chunk = Signal(int, str)
     segment_ready = Signal(int, str)
@@ -93,6 +95,7 @@ class TaskService(QObject):
         history_json: str | None,
     ) -> None:
         print(f"Task started: {text}")
+        task_id: int | None = None
         try:
             task_id = self._next_task_id()
             self.task_started.emit(task_id, text)
@@ -100,79 +103,84 @@ class TaskService(QObject):
             messages = _parse_history(history_json)
             messages.append({"role": "user", "content": text})
 
-            t0 = time.perf_counter()
-            response = agent_service.run_streamed(messages, system_prompt)
-            with self._stream_lock:
-                self._current_stream = response
+            with bind_task_log_emitter(
+                lambda source, message: self.task_log.emit(task_id, source, message)
+            ):
+                t0 = time.perf_counter()
+                response = agent_service.run_streamed(messages, system_prompt)
+                with self._stream_lock:
+                    self._current_stream = response
 
-            sentence_buf = ""
-            seg_index = 1
-            seg_id = task_id * 10000 + seg_index
-            first_chunk_logged = False
-            first_text_logged = False
-            pending_boundary = False
+                sentence_buf = ""
+                seg_index = 1
+                seg_id = task_id * 10000 + seg_index
+                first_chunk_logged = False
+                first_text_logged = False
+                pending_boundary = False
 
-            async for event in response.stream_events():
-                if self._stop_event.is_set():
-                    break
-
-                if not first_chunk_logged:
-                    first_chunk_logged = True
-                    _log_latency("first stream chunk", t0)
-
-                if event.type == "run_item_stream_event":
-                    _log_run_item(event)
-                    continue
-
-                content = _extract_text_delta(event)
-                if not content:
-                    continue
-
-                if not first_text_logged:
-                    first_text_logged = True
-                    _log_latency("first text token", t0)
-
-                for char in content:
+                async for event in response.stream_events():
                     if self._stop_event.is_set():
                         break
 
-                    if pending_boundary:
-                        if (
-                            char.isspace()
-                            or _is_sentence_suffix_char(char)
-                            or _is_sentence_delimiter(char)
-                        ):
-                            sentence_buf += char
-                            self.segment_text_chunk.emit(seg_id, char)
-                            continue
+                    if not first_chunk_logged:
+                        first_chunk_logged = True
+                        _log_latency("first stream chunk", t0)
 
-                        if _should_close_sentence(sentence_buf, char):
-                            sentence = sentence_buf.strip()
-                            if sentence:
-                                self.segment_ready.emit(seg_id, sentence)
-                                self._enqueue_tts(seg_id, sentence)
-                            sentence_buf = ""
-                            seg_index += 1
-                            seg_id = task_id * 10000 + seg_index
+                    if event.type == "run_item_stream_event":
+                        _log_run_item(event)
+                        continue
 
-                        pending_boundary = False
+                    content = _extract_text_delta(event)
+                    if not content:
+                        continue
 
-                    sentence_buf += char
-                    self.segment_text_chunk.emit(seg_id, char)
+                    if not first_text_logged:
+                        first_text_logged = True
+                        _log_latency("first text token", t0)
 
-                    if _is_sentence_delimiter(char):
-                        pending_boundary = True
+                    for char in content:
+                        if self._stop_event.is_set():
+                            break
 
-            # Flush remaining text
-            if not self._stop_event.is_set():
-                sentence = sentence_buf.strip()
-                if sentence:
-                    self.segment_ready.emit(seg_id, sentence)
-                    self._enqueue_tts(seg_id, sentence)
-                self._pending_done.wait()
+                        if pending_boundary:
+                            if (
+                                char.isspace()
+                                or _is_sentence_suffix_char(char)
+                                or _is_sentence_delimiter(char)
+                            ):
+                                sentence_buf += char
+                                self.segment_text_chunk.emit(seg_id, char)
+                                continue
+
+                            if _should_close_sentence(sentence_buf, char):
+                                sentence = sentence_buf.strip()
+                                if sentence:
+                                    self.segment_ready.emit(seg_id, sentence)
+                                    self._enqueue_tts(seg_id, sentence)
+                                sentence_buf = ""
+                                seg_index += 1
+                                seg_id = task_id * 10000 + seg_index
+
+                            pending_boundary = False
+
+                        sentence_buf += char
+                        self.segment_text_chunk.emit(seg_id, char)
+
+                        if _is_sentence_delimiter(char):
+                            pending_boundary = True
+
+                # Flush remaining text
+                if not self._stop_event.is_set():
+                    sentence = sentence_buf.strip()
+                    if sentence:
+                        self.segment_ready.emit(seg_id, sentence)
+                        self._enqueue_tts(seg_id, sentence)
+                    self._pending_done.wait()
 
         except Exception as exc:
             print(f"Task error: {exc}")
+            if task_id is not None:
+                self.task_log.emit(task_id, "stderr", f"Task error: {exc}")
         finally:
             with self._stream_lock:
                 self._current_stream = None
@@ -349,10 +357,47 @@ def _log_run_item(event) -> None:
     item_type = getattr(item, "type", "")
     if item_type == "tool_call_item":
         raw = getattr(item, "raw_item", None)
-        print(f"Agent tool call: {getattr(raw, 'name', 'unknown')}")
+        tool_name = str(getattr(raw, "name", "unknown") or "unknown")
+        print(f"Agent tool call: {tool_name}")
+        emit_task_log("tool", f"Running tool: {tool_name}")
     elif item_type == "tool_call_output_item":
-        output = str(getattr(item, "output", ""))[:200]
+        raw_output = getattr(item, "output", "")
+        _emit_tool_output_logs(raw_output)
+        output = str(raw_output)[:200]
         print(f"Agent tool output: {output}")
+
+
+def _emit_tool_output_logs(raw_output: object) -> None:
+    payload = _parse_tool_output_payload(raw_output)
+    if payload is None:
+        return
+
+    error = str(payload.get("error") or "").strip()
+    if error:
+        emit_task_log("stderr", error)
+
+    message = str(payload.get("message") or "").strip()
+    if message:
+        emit_task_log("status", message)
+
+
+def _parse_tool_output_payload(raw_output: object) -> dict[str, Any] | None:
+    if isinstance(raw_output, dict):
+        return raw_output
+
+    if not isinstance(raw_output, str):
+        return None
+
+    stripped = raw_output.strip()
+    if not stripped:
+        return None
+
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        return None
+
+    return parsed if isinstance(parsed, dict) else None
 
 
 def _log_latency(label: str, started_at: float) -> None:

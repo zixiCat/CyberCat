@@ -13,6 +13,15 @@ export interface Task {
   timestamp: string;
 }
 
+export type TaskLogSource = 'status' | 'tool' | 'stdout' | 'stderr';
+
+export interface TaskLogEntry {
+  taskId: number;
+  source: TaskLogSource;
+  message: string;
+  timestamp: string;
+}
+
 export interface Session {
   id: string;
   timestamp: string;
@@ -177,6 +186,7 @@ export interface BackendBridge {
   set_random_voice_pool?: (voicesJson: string) => void | Promise<void>;
   transcribe_audio_base64?: (audioBase64: string, extension: string) => Promise<string>;
   task_started?: SignalHandler<[number, string]>;
+  task_log?: SignalHandler<[number, string, string]>;
   segment_text_chunk?: SignalHandler<[number, string]>;
   segment_audio_chunk?: SignalHandler<[number, string]>;
   segment_finished?: SignalHandler<[number]>;
@@ -191,6 +201,7 @@ export interface BackendBridge {
 
 export interface ChatBackendSignalHandlers {
   onTaskStarted?: (taskId: number, prompt: string) => void;
+  onTaskLogEntry?: (taskId: number, source: string, message: string) => void;
   onSegmentTextChunk?: (segmentId: number, chunk: string) => void;
   onSegmentAudioChunk?: (segmentId: number, audioBase64: string) => void;
   onSegmentFinished?: (segmentId: number) => void;

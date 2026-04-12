@@ -99,8 +99,8 @@ export const ChatList = memo(({
       style={hasMessages ? { paddingBottom: `${chatScrollPaddingBottom}px` } : undefined}
       className={
         hasMessages
-          ? 'flex flex-1 flex-col gap-3 overflow-auto px-3 pt-3'
-          : 'flex flex-1 items-center justify-center overflow-auto p-3'
+          ? 'flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-3 pt-3'
+          : 'flex min-h-0 flex-1 items-center justify-center overflow-auto p-3'
       }
     >
       {!hasMessages ? (

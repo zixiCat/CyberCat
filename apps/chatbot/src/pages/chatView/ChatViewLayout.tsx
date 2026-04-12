@@ -4,6 +4,7 @@ import { ChatHeader } from './ChatHeader';
 import { ChatInput } from './ChatInput';
 import { ChatList } from './ChatList';
 import { Sidebar } from './Sidebar';
+import { TaskLogPanel } from './TaskLogPanel';
 import { ChunkSegment } from './types';
 
 interface ChatViewLayoutProps {
@@ -54,7 +55,7 @@ export const ChatViewLayout = ({
       />
       <div
         className="
-          flex flex-1 flex-col overflow-hidden rounded-xl bg-zinc-50 shadow-sm
+          flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-zinc-50 shadow-sm
 
           dark:bg-zinc-900
         "
@@ -64,11 +65,14 @@ export const ChatViewLayout = ({
           chatScrollContainerRef={chatScrollContainerRef}
           registerTaskElement={registerTaskElement}
         />
-        <ChatInput
-          handleSendMessage={handleSendMessage}
-          inputId={inputId}
-          setThinkingEnabled={setThinkingEnabled}
-        />
+        <div className="relative">
+          <TaskLogPanel className="absolute right-3 bottom-full left-3 mb-3" />
+          <ChatInput
+            handleSendMessage={handleSendMessage}
+            inputId={inputId}
+            setThinkingEnabled={setThinkingEnabled}
+          />
+        </div>
       </div>
     </div>
   </div>

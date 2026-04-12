@@ -32,6 +32,9 @@ export const ensureBackendSignalBindings = (backend: NonNullable<Window['backend
   backend.task_started?.connect((taskId: number, prompt: string) => {
     window.cyberCatBackendSignalHandlers?.onTaskStarted?.(taskId, prompt);
   });
+  backend.task_log?.connect((taskId: number, source: string, message: string) => {
+    window.cyberCatBackendSignalHandlers?.onTaskLogEntry?.(taskId, source, message);
+  });
   backend.segment_text_chunk?.connect((segmentId: number, chunk: string) => {
     window.cyberCatBackendSignalHandlers?.onSegmentTextChunk?.(segmentId, chunk);
   });

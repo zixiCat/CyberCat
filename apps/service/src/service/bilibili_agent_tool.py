@@ -7,18 +7,11 @@ import json
 from agents import function_tool
 
 from service.agent_tools import register_tool
-from service.bilibili_download_service import run_bilibili_download
-
-TOOL_OUTPUT_LIMIT = 4000
-
-
-def _truncate_tool_output(text: str) -> str:
-    cleaned = str(text or "").strip()
-    if len(cleaned) <= TOOL_OUTPUT_LIMIT:
-        return cleaned
-
-    overflow = len(cleaned) - TOOL_OUTPUT_LIMIT
-    return f"[truncated {overflow} characters]\n{cleaned[-TOOL_OUTPUT_LIMIT:]}"
+from service.bilibili_download_service import (
+    run_bilibili_download,
+    summarize_bilibili_download_failure,
+)
+from service.task_log_service import emit_task_log
 
 
 @register_tool
@@ -37,15 +30,20 @@ def download_bilibili(url: str = "") -> str:
     try:
         result = run_bilibili_download(argv)
     except Exception as exc:
+        emit_task_log("stderr", str(exc))
         return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
 
+    payload = {
+        "ok": result.ok,
+        "returnCode": result.return_code,
+        "targetSource": result.target_source,
+        "targetUrl": result.target_url,
+    }
+
+    if not result.ok:
+        payload["error"] = summarize_bilibili_download_failure(result)
+
     return json.dumps(
-        {
-            "ok": result.ok,
-            "returnCode": result.return_code,
-            "requestedArgs": result.requested_args,
-            "stdout": _truncate_tool_output(result.stdout),
-            "stderr": _truncate_tool_output(result.stderr),
-        },
+        payload,
         ensure_ascii=False,
     )
