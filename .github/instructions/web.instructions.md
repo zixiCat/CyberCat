@@ -20,7 +20,16 @@ applyTo: 'apps/chatbot/**'
 - **Hybrid Styling:**
   - **Ant Design 6:** Mandatory for complex components: `Table`, `Modal`, `Form`, `DatePicker`, `Select`. Don't use any the following components: `Col`, `Row`, `Card`, `Badge`. For simple components, prefer Tailwind v4 CSS, if you see the above components in existing files, please replace them with Tailwind v4 CSS.
   - **Tailwind v4 CSS:** Use exclusively for layout (Flex/Grid), spacing, and micro-components.
+  - **Ant Design Style Overrides:** When adjusting styles on Ant Design components, first prefer Tailwind utility strings through `className`. If a component exposes `classNames`, check the supported slot keys and use Tailwind utilities there for targeted overrides, for example:
+
+    ```tsx
+    classNames={{
+      label: 'flex items-center',
+    }}
+    ```
+
   - **Spacing Standard:** Use a factor of `5` (e.g., `p-5`, `m-5`, `gap-5`) for all container spacing and layouts.
+
 - **Icons:** Use `lucide-react` for all UI icons.
 - **Typography:** Minimum font size is **14px** for readability.
 - **Theming:** Default to Light Mode. Apply `dark:` utility classes for Tailwind dark mode support (e.g., `dark:text-white`).
