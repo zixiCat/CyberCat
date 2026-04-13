@@ -122,7 +122,7 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
       : resolvedActiveSection === 'ai'
         ? 'Set the providers, credentials, and saved custom chat prompts the assistant can use.'
         : resolvedActiveSection === 'bilibili'
-          ? 'Keep the BBDown cookie local, refresh it with QR login, and avoid storing secrets in the repo.'
+          ? 'Keep the BBDown cookie and config local, refresh auth with QR login, and avoid storing secrets in the repo.'
           : resolvedActiveSection === 'fileIngest'
             ? 'Choose one or more archive folders with relative or absolute paths, then describe what each folder should collect before CyberCat appends dated notes inside them.'
             : 'Tune recognition terms and run quick speech checks without leaving the page.';
@@ -770,7 +770,7 @@ export const SettingsView = ({ onSaved }: SettingsViewProps) => {
 
                           dark:text-zinc-400
                         ">
-                          Target URL and cookie for local Bilibili downloads
+                          Target URL, cookie, and BBDown options for local Bilibili downloads
                         </p>
                       </div>
                     </div>

@@ -81,6 +81,18 @@ export const BILIBILI_FIELDS: SettingsField[] = [
     description:
       'Paste the full contents of BBDown.data if you already have it. QR login below can fill this automatically.',
   },
+  {
+    key: 'bilibili_bbdown_config',
+    label: 'BBDown Config',
+    placeholder:
+      '--multi-file-pattern\n<videoTitle>/<ownerName> <videoDate> <pageTitle>\n\n--skip-ai\n\n--ffmpeg-path\nC:/Tools/ffmpeg/bin/ffmpeg.exe',
+    required: false,
+    secret: false,
+    multiline: true,
+    rows: 8,
+    description:
+      'Optional BBDown.config contents stored in CyberCat settings and written to a local runtime file when downloads start.',
+  },
 ];
 
 export const SPEECH_FIELDS: SettingsField[] = [

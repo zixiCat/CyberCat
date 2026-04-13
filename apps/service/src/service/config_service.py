@@ -26,6 +26,18 @@ CUSTOM_PROMPTS_KEY = "custom_prompts"
 LEGACY_CUSTOM_PROMPT_FILE = "Custom.md"
 DEFAULT_CUSTOM_PROMPT_NAME = "Custom"
 DEFAULT_CUSTOM_PROMPT_NAME_PREFIX = "Custom Prompt"
+DEFAULT_BILIBILI_BBDOWN_CONFIG = "\n".join(
+    [
+        "--multi-file-pattern",
+        "<videoTitle>/<ownerName> <videoDate> <pageTitle>",
+        "",
+        "--skip-ai",
+    ]
+)
+
+
+def _normalize_bilibili_bbdown_config(raw_value: Any) -> str:
+    return str(raw_value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
 def _default_file_ingest_targets_json(
@@ -258,6 +270,7 @@ _FIELDS: dict[str, tuple[str, Any]] = {
     "feature_file_ingest_enabled": ("FEATURE_FILE_INGEST_ENABLED", False),
     "bilibili_cookie": ("BILIBILI_COOKIE", ""),
     "bilibili_url": ("BILIBILI_URL", ""),
+    "bilibili_bbdown_config": ("BILIBILI_BBDOWN_CONFIG", DEFAULT_BILIBILI_BBDOWN_CONFIG),
     "file_ingest_targets": ("FILE_INGEST_TARGETS", _default_file_ingest_targets_json()),
     "custom_prompts": ("CUSTOM_PROMPTS", _default_custom_prompts_json()),
     "qwen_api_key": ("QWEN_API_KEY", ""),
@@ -282,7 +295,7 @@ FEATURE_FIELD_KEYS: dict[str, str] = {
 }
 
 REQUIRED_KEYS = ["qwen_api_key", "openai_api_key", "openai_base_url", "openai_model"]
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 DEFAULT_PROFILE_ID = "default"
 DEFAULT_PROFILE_NAME = "Default"
 LOCKED_QWEN_TTS_MODEL = "qwen-tts-latest"
@@ -451,6 +464,9 @@ class ConfigService:
             "activeProfileName": active_profile["name"],
         }
 
+    def get_config_directory(self) -> Path:
+        return _config_dir()
+
     def backup_to(self, destination: Path) -> dict[str, Any]:
         backup_path = destination.expanduser()
         if not backup_path.suffix:
@@ -576,6 +592,8 @@ class ConfigService:
         coerced_value = ConfigService._coerce_value(value, default)
         if key == "qwen_tts_model":
             return LOCKED_QWEN_TTS_MODEL
+        if key == "bilibili_bbdown_config":
+            return _normalize_bilibili_bbdown_config(coerced_value)
         if key == CUSTOM_PROMPTS_KEY:
             return _normalize_custom_prompts_json(coerced_value)
         return coerced_value

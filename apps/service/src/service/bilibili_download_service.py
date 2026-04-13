@@ -19,6 +19,8 @@ MISSING_BILIBILI_TARGET_ERROR = (
     "No Bilibili URL was provided and no bilibili_url is configured in CyberCat settings."
 )
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts" / "bilibili"
+RUNTIME_CONFIG_DIR_NAME = "bilibili"
+RUNTIME_CONFIG_FILE_NAME = "BBDown.config"
 
 
 @dataclass(slots=True)
@@ -40,13 +42,21 @@ def build_bilibili_download_command(argv: Sequence[str] | None = None) -> tuple[
 
     resolved_args = _resolve_download_args(argv)
     bbdown_path = _bbdown_executable_path()
-    return [str(bbdown_path), "-c", cookie, *resolved_args], SCRIPT_DIR
+    command = [str(bbdown_path), "-c", cookie]
+
+    runtime_config_path = _prepare_runtime_bbdown_config_file()
+    if runtime_config_path is not None:
+        command.extend(["--config-file", str(runtime_config_path)])
+
+    command.extend(resolved_args)
+    return command, SCRIPT_DIR
 
 
 def run_bilibili_download(argv: Sequence[str] | None = None) -> BilibiliDownloadResult:
     command, working_directory = build_bilibili_download_command(argv)
+    requested_args = _extract_requested_args(command)
 
-    emit_task_log("status", f"BBDown starting: {' '.join(command[3:])}")
+    emit_task_log("status", f"BBDown starting: {' '.join(requested_args)}")
 
     stdout_lines: list[str] = []
     stderr_lines: list[str] = []
@@ -90,7 +100,7 @@ def run_bilibili_download(argv: Sequence[str] | None = None) -> BilibiliDownload
     return BilibiliDownloadResult(
         ok=return_code == 0,
         return_code=return_code,
-        requested_args=list(command[3:]),
+        requested_args=requested_args,
         stdout="\n".join(stdout_lines),
         stderr="\n".join(stderr_lines),
     )
@@ -120,3 +130,37 @@ def _bbdown_executable_path() -> Path:
     raise FileNotFoundError(
         f"BBDown executable not found in {SCRIPT_DIR}. Expected BBDown.exe or BBDown."
     )
+
+
+def _prepare_runtime_bbdown_config_file() -> Path | None:
+    config_text = str(config_service.get("bilibili_bbdown_config") or "").strip()
+    runtime_config_path = _runtime_bbdown_config_path()
+
+    if not config_text:
+        try:
+            runtime_config_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return None
+
+    runtime_config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        runtime_config_path.write_text(f"{config_text}\n", encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"Failed to write BBDown config file: {exc}") from exc
+
+    return runtime_config_path
+
+
+def _runtime_bbdown_config_path() -> Path:
+    return (
+        config_service.get_config_directory() / RUNTIME_CONFIG_DIR_NAME / RUNTIME_CONFIG_FILE_NAME
+    )
+
+
+def _extract_requested_args(command: Sequence[str]) -> list[str]:
+    requested_args = list(command[3:])
+    if len(requested_args) >= 2 and requested_args[0] == "--config-file":
+        return requested_args[2:]
+    return requested_args
