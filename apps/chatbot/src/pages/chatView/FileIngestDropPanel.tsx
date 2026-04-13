@@ -89,7 +89,8 @@ export const FileIngestDropPanel = () => {
           ">
             CyberCat will organize the extracted content, route it into the best matching
             configured folder, and save it into date-based markdown files under output/file_ingest/
-            or any absolute path you configured.
+            or any absolute path you configured. Large drops are queued and processed in batches
+            of 10 files.
           </p>
 
           <p className="

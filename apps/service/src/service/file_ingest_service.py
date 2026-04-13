@@ -29,7 +29,7 @@ from utils.file_ingest_archive import (
     write_file_ingest_archive,
 )
 
-MAX_FILES_PER_JOB = 8
+MAX_FILES_PER_BATCH = 10
 MAX_TEXT_CHARS_PER_FILE = 12000
 MAX_IMAGE_BYTES = 4_000_000
 TEXT_SNIFF_BYTES = 4096
@@ -133,6 +133,16 @@ class TargetFolderContext:
     non_text_examples: tuple[str, ...] = ()
 
 
+@dataclass(slots=True)
+class FileIngestBatchResult:
+    prepared_sources: list[PreparedSource]
+    output_summaries: list[dict[str, str]]
+    archive_outputs: list[dict[str, Any]]
+    warnings: list[str]
+    summary: str
+    appended_bytes: int
+
+
 class FileIngestService:
     def __init__(self) -> None:
         self._job_lock = threading.Lock()
@@ -211,32 +221,58 @@ class FileIngestService:
 
     def _ingest_paths(self, job_id: str, paths: list[Path]) -> dict[str, Any]:
         started_at = time.perf_counter()
-        prepared_sources, warnings = self._prepare_sources(paths)
+        collected_at = time.strftime("%Y-%m-%d %H:%M:%S")
+        path_batches = self._create_path_batches(paths)
+        warnings: list[str] = []
+        prepared_sources: list[PreparedSource] = []
+        batch_summaries: list[str] = []
+        total_appended_bytes = 0
+        output_summaries_by_key: dict[tuple[str, str, str], dict[str, str]] = {}
+        archive_outputs_by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+        if len(path_batches) > 1:
+            warnings.append(
+                f"Processed {len(paths)} dropped files in {len(path_batches)} queued batches of up to {MAX_FILES_PER_BATCH} files."
+            )
+
+        for path_batch in path_batches:
+            batch_result = self._ingest_path_batch(path_batch, collected_at)
+            warnings.extend(batch_result.warnings)
+            if not batch_result.prepared_sources:
+                continue
+
+            prepared_sources.extend(batch_result.prepared_sources)
+            total_appended_bytes += batch_result.appended_bytes
+            if batch_result.summary:
+                batch_summaries.append(batch_result.summary)
+
+            for output_payload in batch_result.output_summaries:
+                output_key = (
+                    output_payload["folderPath"],
+                    output_payload["noteRelativePath"],
+                    output_payload["purpose"],
+                )
+                output_summaries_by_key.setdefault(output_key, output_payload)
+
+            for archive_output in batch_result.archive_outputs:
+                output_key = (
+                    archive_output["folderPath"],
+                    archive_output["noteRelativePath"],
+                    archive_output["purpose"],
+                )
+                existing_output = archive_outputs_by_key.get(output_key)
+                if existing_output is None:
+                    archive_outputs_by_key[output_key] = archive_output
+                    continue
+
+                existing_output["content"] = (
+                    f"{existing_output['content']}\n\n{archive_output['content']}".strip()
+                )
+
         if not prepared_sources:
             raise ValueError("None of the dropped files could be prepared for ingest.")
 
-        routed_outputs, routing_summary = self._generate_routed_outputs(
-            prepared_sources,
-            self.targets,
-            warnings,
-        )
-
-        collected_at = time.strftime("%Y-%m-%d %H:%M:%S")
-        total_appended_bytes = 0
-        output_summaries: list[dict[str, str]] = []
-        archive_outputs: list[dict[str, Any]] = []
-
-        for routed_output in routed_outputs:
-            note_relative_path, note_path = resolve_file_ingest_note_path(
-                routed_output.folder_path,
-                collected_at,
-                routed_output.note_suffix,
-            )
-            total_appended_bytes += append_file_ingest_entry(note_path, routed_output.content)
-
-            output_payload = routed_output.to_result_payload(note_relative_path)
-            output_summaries.append(output_payload)
-            archive_outputs.append({**output_payload, "content": routed_output.content})
+        routing_summary = self._build_job_summary(batch_summaries, len(path_batches))
 
         archive_relative_path = write_file_ingest_archive(
             job_id=job_id,
@@ -246,7 +282,7 @@ class FileIngestService:
                 for target in self.targets
             ],
             sources=[source.to_archive_meta() for source in prepared_sources],
-            outputs=archive_outputs,
+            outputs=list(archive_outputs_by_key.values()),
             warnings=warnings,
             summary=routing_summary,
         )
@@ -258,25 +294,74 @@ class FileIngestService:
             "jobId": job_id,
             "collectedAt": collected_at,
             "sourceCount": len(prepared_sources),
-            "outputCount": len(output_summaries),
-            "outputs": output_summaries,
+            "outputCount": len(output_summaries_by_key),
+            "outputs": list(output_summaries_by_key.values()),
             "archiveRelativePath": archive_relative_path,
             "warnings": warnings,
             "summary": routing_summary,
             "appendedBytes": total_appended_bytes,
         }
 
+    def _create_path_batches(self, paths: list[Path]) -> list[list[Path]]:
+        return [
+            paths[index : index + MAX_FILES_PER_BATCH]
+            for index in range(0, len(paths), MAX_FILES_PER_BATCH)
+        ]
+
+    def _ingest_path_batch(
+        self,
+        path_batch: list[Path],
+        collected_at: str,
+    ) -> FileIngestBatchResult:
+        batch_warnings: list[str] = []
+        prepared_sources, prepare_warnings = self._prepare_sources(path_batch)
+        batch_warnings.extend(prepare_warnings)
+        if not prepared_sources:
+            return FileIngestBatchResult(
+                prepared_sources=[],
+                output_summaries=[],
+                archive_outputs=[],
+                warnings=batch_warnings,
+                summary="",
+                appended_bytes=0,
+            )
+
+        routed_outputs, routing_summary = self._generate_routed_outputs(
+            prepared_sources,
+            self.targets,
+            batch_warnings,
+        )
+
+        output_summaries: list[dict[str, str]] = []
+        archive_outputs: list[dict[str, Any]] = []
+        appended_bytes = 0
+
+        for routed_output in routed_outputs:
+            note_relative_path, note_path = resolve_file_ingest_note_path(
+                routed_output.folder_path,
+                collected_at,
+                routed_output.note_suffix,
+            )
+            appended_bytes += append_file_ingest_entry(note_path, routed_output.content)
+
+            output_payload = routed_output.to_result_payload(note_relative_path)
+            output_summaries.append(output_payload)
+            archive_outputs.append({**output_payload, "content": routed_output.content})
+
+        return FileIngestBatchResult(
+            prepared_sources=prepared_sources,
+            output_summaries=output_summaries,
+            archive_outputs=archive_outputs,
+            warnings=batch_warnings,
+            summary=routing_summary,
+            appended_bytes=appended_bytes,
+        )
+
     def _prepare_sources(self, paths: list[Path]) -> tuple[list[PreparedSource], list[str]]:
         warnings: list[str] = []
         prepared_sources: list[PreparedSource] = []
 
-        selected_paths = paths[:MAX_FILES_PER_JOB]
-        if len(paths) > MAX_FILES_PER_JOB:
-            warnings.append(
-                f"Only the first {MAX_FILES_PER_JOB} dropped files were processed in this job."
-            )
-
-        for path in selected_paths:
+        for path in paths:
             prepared_source, warning = self._prepare_source(path)
             if warning:
                 warnings.append(warning)
@@ -802,6 +887,32 @@ class FileIngestService:
             if cleaned:
                 return cleaned[:220]
         return result_text.strip()[:220]
+
+    def _build_job_summary(self, batch_summaries: list[str], batch_count: int) -> str:
+        unique_summaries: list[str] = []
+        for summary in batch_summaries:
+            if summary and summary not in unique_summaries:
+                unique_summaries.append(summary)
+
+        if batch_count <= 1:
+            return unique_summaries[0] if unique_summaries else ""
+
+        summary_prefix = (
+            f"Processed the dropped files in {batch_count} queued batches of up to "
+            f"{MAX_FILES_PER_BATCH} files."
+        )
+        preview = " ".join(unique_summaries[:2]).strip()
+        if not preview:
+            return summary_prefix
+
+        remaining_summary_count = max(0, len(unique_summaries) - 2)
+        if remaining_summary_count:
+            return (
+                f"{summary_prefix} {preview} "
+                f"{remaining_summary_count} additional batch summary(s) were recorded."
+            )
+
+        return f"{summary_prefix} {preview}"
 
     def _detect_source_kind(self, path: Path) -> str:
         suffix = path.suffix.lower()
