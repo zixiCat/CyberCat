@@ -1,7 +1,10 @@
 import { Alert } from 'antd';
-import { Archive, FolderInput } from 'lucide-react';
+import { Archive, FolderInput, Upload } from 'lucide-react';
+import { useSetState } from 'react-use';
 
+import { loadBackendJson } from '../backendShared';
 import { useChatUiStore } from './chatUiStore';
+import { FileIngestPickerResult, FileIngestStartResult } from './types';
 
 const ZERO_COUNT = 0;
 const SINGLE_FILE_COUNT = 1;
@@ -17,10 +20,71 @@ export const FileIngestDropPanel = () => {
   const isFileIngestRunning = useChatUiStore((state) => state.isFileIngestRunning);
   const pendingFileIngestSourceCount = useChatUiStore((state) => state.pendingFileIngestSourceCount);
   const lastFileIngestResult = useChatUiStore((state) => state.lastFileIngestResult);
+  const setUiState = useChatUiStore((state) => state.setUiState);
+  const [{ isPickerOpen }, setState] = useSetState({ isPickerOpen: false });
 
   if (!fileIngestEnabled) {
     return null;
   }
+
+  const canUploadFiles = Boolean(
+    window.backend?.pick_file_ingest_paths && window.backend?.start_file_ingest,
+  );
+
+  const setFileIngestError = (error: string, jobId = '') => {
+    setUiState({
+      isFileIngestRunning: false,
+      pendingFileIngestSourceCount: 0,
+      lastFileIngestResult: {
+        ok: false,
+        jobId,
+        error,
+      },
+    });
+  };
+
+  const handleUploadFiles = async () => {
+    if (isFileIngestRunning || isPickerOpen || !canUploadFiles) {
+      return;
+    }
+
+    setState({ isPickerOpen: true });
+    try {
+      const selection = await loadBackendJson<FileIngestPickerResult>(
+        () => window.backend?.pick_file_ingest_paths?.(),
+        'File ingest picker',
+      );
+      if (!selection.ok) {
+        if (selection.cancelled) {
+          return;
+        }
+
+        setFileIngestError(selection.error || 'Failed to select files for ingest.');
+        return;
+      }
+
+      if (!selection.paths?.length) {
+        return;
+      }
+
+      const startResult = await loadBackendJson<FileIngestStartResult>(
+        () => window.backend?.start_file_ingest?.(JSON.stringify(selection.paths)),
+        'File ingest start',
+      );
+      if (!startResult.ok) {
+        setFileIngestError(
+          startResult.error || 'Failed to start file ingest.',
+          startResult.jobId || '',
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to upload files.';
+      console.error('Failed to upload files into CyberCat:', error);
+      setFileIngestError(message);
+    } finally {
+      setState({ isPickerOpen: false });
+    }
+  };
 
   const configuredFolders = fileIngestTargets
     .map((target) => target.folderPath.trim())
@@ -54,7 +118,8 @@ export const FileIngestDropPanel = () => {
       ]
         .filter(Boolean)
         .join(' ')
-    : lastFileIngestResult?.error || 'Failed to process the dropped files.';
+    : lastFileIngestResult?.error || 'Failed to process the selected files.';
+  const triggerLabel = isPickerOpen ? 'Opening...' : 'Upload files';
 
   return (
     <div className="
@@ -72,14 +137,45 @@ export const FileIngestDropPanel = () => {
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="
-            text-sm font-semibold text-emerald-900
+          <div className="flex items-start justify-between gap-3">
+            <div className="
+              text-sm font-semibold text-emerald-900
 
-            dark:text-emerald-50
-          ">
-            {isFileIngestRunning
-              ? `Processing ${pendingFileIngestSourceCount || SINGLE_FILE_COUNT} dropped file(s)`
-              : 'Drop files into the CyberCat window'}
+              dark:text-emerald-50
+            ">
+              {isFileIngestRunning
+                ? `Processing ${pendingFileIngestSourceCount || SINGLE_FILE_COUNT} file(s)`
+                : 'Drop or upload files here'}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                void handleUploadFiles();
+              }}
+              disabled={isFileIngestRunning || isPickerOpen || !canUploadFiles}
+              title={
+                canUploadFiles ? 'Choose local files to ingest' : 'File upload is unavailable.'
+              }
+              className="
+                inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border
+                border-emerald-200/80 bg-white/80 px-3 text-[11px] font-semibold tracking-[0.08em]
+                text-emerald-800 uppercase shadow-xs transition-all duration-150
+
+                hover:border-emerald-300/90 hover:bg-white hover:text-emerald-900
+
+                active:scale-95
+
+                disabled:cursor-not-allowed disabled:opacity-50
+
+                dark:border-emerald-300/20 dark:bg-black/15 dark:text-emerald-100
+
+                dark:hover:border-emerald-200/30 dark:hover:bg-black/25
+              "
+            >
+              <Upload size={13} />
+              <span>{triggerLabel}</span>
+            </button>
           </div>
 
           <p className="
@@ -89,8 +185,8 @@ export const FileIngestDropPanel = () => {
           ">
             CyberCat will organize the extracted content, route it into the best matching
             configured folder, and save it into date-based markdown files under output/file_ingest/
-            or any absolute path you configured. Large drops are queued and processed in batches
-            of 10 files.
+            or any absolute path you configured. You can drag files into the window or upload them
+            here. Large drops are queued and processed in batches of 10 files.
           </p>
 
           <p className="

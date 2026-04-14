@@ -109,6 +109,20 @@ export interface FileIngestStartPayload {
   targetFolders: string[];
 }
 
+export interface FileIngestPickerResult {
+  ok: boolean;
+  cancelled?: boolean;
+  sourceCount?: number;
+  paths?: string[];
+  error?: string;
+}
+
+export interface FileIngestStartResult {
+  ok: boolean;
+  jobId?: string;
+  error?: string;
+}
+
 export interface FileIngestOutputSummary {
   folderPath: string;
   noteRelativePath: string;
@@ -149,6 +163,7 @@ export interface SpeechLabBackendSignalHandlers {
 export interface BackendBridge {
   start_task?: (text: string, systemPrompt?: string, historyJson?: string) => void;
   stop_task?: () => void;
+  pick_file_ingest_paths?: () => Promise<string>;
   start_file_ingest?: (pathsJson: string) => Promise<string>;
   start_tts_test?: (requestId: string, text: string, voice: string) => void;
   start_asr_test_recording?: () => Promise<string>;

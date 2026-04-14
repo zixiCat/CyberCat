@@ -209,6 +209,15 @@ class BackendService(QObject):
     def handle_native_file_drop(self, paths: list[str]) -> str:
         return self._start_file_ingest(paths)
 
+    @Slot(result=str)
+    def pick_file_ingest_paths(self) -> str:
+        if not config_service.is_feature_enabled("file_ingest"):
+            return _file_ingest_disabled_result()
+
+        from service.backend.file_ingest_handler import pick_file_ingest_paths
+
+        return json.dumps(pick_file_ingest_paths(), ensure_ascii=False)
+
     @Slot(str, result=str)
     def start_file_ingest(self, paths_json: str) -> str:
         try:

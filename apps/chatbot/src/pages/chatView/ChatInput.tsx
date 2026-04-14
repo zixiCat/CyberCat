@@ -63,7 +63,7 @@ export const ChatInput = ({
             isTaskRunning
               ? 'AI is thinking...'
               : fileIngestEnabled
-                ? 'Type a message or drop local files into the window… (Shift+Enter for newline)'
+                ? 'Type a message, drop local files, or upload files here… (Shift+Enter for newline)'
                 : 'Type a message… (Shift+Enter for newline)'
           }
           autoSize={{ minRows: 3, maxRows: 6 }}
