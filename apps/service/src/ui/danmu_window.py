@@ -1,11 +1,16 @@
 import ctypes
+import logging
 import random
 import sys
+import threading
 from dataclasses import dataclass
+from collections import deque
 
 from PySide6.QtCore import QElapsedTimer, QRect, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
 from PySide6.QtWidgets import QWidget
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -30,6 +35,10 @@ class DanmuManager(QWidget):
             | Qt.WindowTransparentForInput
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
+        # Ensure no background brush is painted
+        self.setAutoFillBackground(False)
+        # Explicitly set stylesheet to ensure transparent background
+        self.setStyleSheet("background-color: transparent;")
 
         # Cover the primary screen (or a large enough area)
         screen = self.screen().geometry()
@@ -67,13 +76,21 @@ class DanmuManager(QWidget):
         self._elapsed_timer.start()
         self._ex_style_applied = False
 
+        # AI response text buffer for streaming danmu
+        self._ai_text_buffer = ""
+        self._ai_buffer_lock = threading.Lock()
+        self._ai_buffer_timer = QTimer(self)
+        self._ai_buffer_timer.setInterval(500)  # Flush buffer every 500ms
+        self._ai_buffer_timer.setSingleShot(False)
+        self._ai_buffer_timer.timeout.connect(self._flush_ai_buffer)
+
     def showEvent(self, event):
         super().showEvent(event)
+        logger.debug("Danmu window shown, applying transparent style")
         self._apply_transparent_ex_style()
 
     def _apply_transparent_ex_style(self):
-        """Set WS_EX_TRANSPARENT so screenshot / window-detection tools
-        in other processes see through this overlay."""
+        """Set Windows extended styles for transparent, click-through overlay."""
         if self._ex_style_applied or sys.platform != "win32":
             return
         hwnd = int(self.winId())
@@ -85,17 +102,22 @@ class DanmuManager(QWidget):
         WS_EX_LAYERED = 0x00080000
         WS_EX_NOACTIVATE = 0x08000000
         ex = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE
+        # Use WS_EX_LAYERED for proper alpha blending with WA_TranslucentBackground
+        ex |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE
         user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex)
         self._ex_style_applied = True
 
     def add_danmu(self, text):
         if not text or not text.strip():
+            logger.debug("Ignoring empty danmu text")
             return
 
+        logger.debug(f"Adding danmu: {text[:50]}...")
         if not self.isVisible():
+            logger.debug("Danmu window not visible, showing now")
             self.show()
         if not self._frame_timer.isActive():
+            logger.debug("Starting danmu frame timer")
             self._elapsed_timer.restart()
             self._frame_timer.start()
 
@@ -120,7 +142,41 @@ class DanmuManager(QWidget):
                 text_color=QColor(255, 255, 255),
             )
         )
+        logger.debug(f"Danmu added, total active: {len(self.active_danmus)}")
         self.update()
+
+    def add_ai_text_chunk(self, char: str) -> None:
+        """Accumulate streaming AI response text and emit as danmu in chunks."""
+        if not char:
+            return
+
+        with self._ai_buffer_lock:
+            self._ai_text_buffer += char
+
+            # Flush on sentence boundaries or when buffer is large enough
+            should_flush = (
+                char in ".!?"  # End of sentence
+                or len(self._ai_text_buffer) >= 80  # Max buffer size
+            )
+
+            if should_flush and self._ai_text_buffer.strip():
+                text_to_show = self._ai_text_buffer.strip()
+                self._ai_text_buffer = ""
+                # Emit on the main thread via QTimer singleShot pattern
+                QTimer.singleShot(0, lambda t=text_to_show: self.add_danmu(t))
+            elif not self._ai_buffer_timer.isActive():
+                self._ai_buffer_timer.start()
+
+    def _flush_ai_buffer(self) -> None:
+        """Flush remaining buffered AI text."""
+        with self._ai_buffer_lock:
+            if not self._ai_text_buffer:
+                return
+            text_to_show = self._ai_text_buffer.strip()
+            self._ai_text_buffer = ""
+
+        if text_to_show:
+            self.add_danmu(text_to_show)
 
     def _advance_danmus(self):
         if not self.active_danmus:
@@ -140,6 +196,7 @@ class DanmuManager(QWidget):
 
         self.active_danmus = next_items
         if not self.active_danmus:
+            logger.debug("All danmus finished, hiding window")
             self._frame_timer.stop()
             self.hide()
             return
@@ -149,9 +206,12 @@ class DanmuManager(QWidget):
         if not self.active_danmus:
             return
 
+        # Create painter with no background fill
         painter = QPainter(self)
         painter.setRenderHint(QPainter.TextAntialiasing)
         painter.setFont(self._font)
+        # Ensure background is not filled
+        painter.setBrush(Qt.NoBrush)
 
         for item in self.active_danmus:
             text_rect = QRect(int(item.x), item.y, item.width, item.height)

@@ -44,6 +44,10 @@ def main():
     # Initialize Danmu Manager (starts hidden; auto-shows when items arrive)
     danmu_manager = DanmuManager()
     backend_service.show_danmu.connect(danmu_manager.add_danmu)
+    # Connect AI streaming text to danmu (accumulates chunks into sentences)
+    backend_service.segment_text_chunk.connect(
+        lambda _, char: danmu_manager.add_ai_text_chunk(char)
+    )
 
     # Initialize UI
     window = MainWindow(backend_service)
