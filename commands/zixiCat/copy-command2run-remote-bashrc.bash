@@ -1,0 +1,1 @@
+echo "source <(curl -sL https://gist.githubusercontent.com/zixiCat/65d72284ce9641016be74cf4c21b224a/raw/d8dee0bd392a499c2aca938b82622adfd3ff78c1/.bashrc_remote)" | clip

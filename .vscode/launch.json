@@ -2,28 +2,28 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "chrome",
+      "type": "node",
       "request": "launch",
-      "name": "CyberCat Chatbot Web",
-      "url": "http://localhost:4100",
-      "webRoot": "${workspaceFolder}/apps/chatbot",
-      "sourceMaps": true
-    },
-    {
-      "name": "CyberCat Service",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "src/main.py",
-      "console": "internalConsole",
-      "cwd": "${workspaceFolder}/apps/service",
-      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
-      "redirectOutput": true
-    }
-  ],
-  "compounds": [
-    {
-      "name": "Full Stack",
-      "configurations": ["CyberCat Chatbot Web", "CyberCat Service"]
+      "name": "Debug @cyber-cat/service with Nx",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "nx",
+        "serve",
+        "@cyber-cat/service"
+      ],
+      "env": {
+        "NODE_OPTIONS": "--inspect=9229"
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceFolder}/apps/service/dist/**/*.(m|c|)js",
+        "!**/node_modules/**"
+      ]
     }
   ]
 }

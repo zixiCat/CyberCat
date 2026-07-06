@@ -1,51 +1,56 @@
-<div align="center">
-	<img src="./CyberCat.png" alt="CyberCat" width="132" />
-	<p>
-		<img src="./CyberCat4Text.png" alt="CyberCatText" width="146" />
-	</p>
-	<p><strong>Your AI desktop companion for chat, voice input, and natural speech.</strong></p>
-	<p>Talk, type, listen, and keep everything in one place.</p>
-</div>
+# CyberCat
 
-English | [简体中文](README.zh-CN.md)
+<p align="center">
+	<img src="./brand/CyberCat.png" width="180" alt="CyberCat avatar" />
+</p>
 
-CyberCat is a Windows desktop app that combines AI chat, voice recording, and spoken replies in one place.
+<p align="center">
+	<img src="./brand/CyberCat4Text.png" width="220" alt="CyberCat wordmark" />
+</p>
 
-## Install
+CyberCat is a small Nx workspace with:
 
-1. Open the latest [GitHub release](https://github.com/zixiCat/CyberCat/releases).
-2. Download the latest CyberCat-setup installer.
-3. Double-click the installer and follow the setup window.
-4. Launch CyberCat from the desktop shortcut or the Start menu.
+- a Fastify service that discovers runnable script commands and streams output over Server-Sent Events
+- a React web app that lets you filter, run, and watch those commands in a terminal-style UI
+- colocated command entrypoints under [commands](./commands) and a local `.env` file in the `CyberCat` root
 
-That is all you need. You do not need to install anything else manually.
+## Structure
 
-## What You Can Do
+- [apps/service](./apps/service) contains the Fastify API and command execution backend
+- [apps/web](./apps/web) contains the React UI and web assets
+- [commands/xgd](./commands/xgd) contains the xgd test scripts
+- [commands/zixiCat](./commands/zixiCat) contains the zixiCat helper scripts
 
-- Chat with your AI assistant in a desktop window
-- Record your voice and send it as input
-- Hear replies with built-in speech playback
-- Use quick keyboard shortcuts for faster interaction
+## Development
 
-## Bilibili / BBDown
+Create a local environment file from [`.env.example`](./.env.example) and add your credentials before running the xgd commands.
 
-CyberCat includes local Bilibili settings for BBDown workflows:
+Start the service:
 
-1. Open CyberCat and go to `Settings -> Bilibili`.
-2. Set the Bilibili URL you want to use, such as a space or favourites link.
-3. Sign in with `QR Login`, or paste an existing BBDown cookie.
-4. Save settings. CyberCat stores the cookie in your active local profile.
+```sh
+npx nx serve @cyber-cat/service
+```
 
-For repository helper scripts and other advanced details, see [apps/service/src/scripts/bilibili/README.md](apps/service/src/scripts/bilibili/README.md).
+Start the web app:
 
-## Useful Hotkeys
+```sh
+npx nx serve @cyber-cat/web
+```
 
-- Hold `z+x` to record voice, then confirm before sending
-- Hold `x+c` to record voice and send immediately
-- Press `Ctrl+Shift+0` to speak selected text
+Build both apps:
 
-## Troubleshooting
+```sh
+npx nx build @cyber-cat/service
+npx nx build @cyber-cat/web
+```
 
-- If Windows shows a security prompt, choose to continue if you trust this release
-- If the app does not open after installation, restart Windows and try again
-- If a shortcut does not respond, make sure another app is not already using the same keys
+## Commands
+
+CyberCat discovers shell scripts directly from [commands/xgd](./commands/xgd) and [commands/zixiCat](./commands/zixiCat). They run from the repository root:
+
+```sh
+bash ./commands/xgd/qwen-chat-llm-test.bash
+bash ./commands/xgd/qwen-embed-test.bash
+bash ./commands/xgd/qwen-rerank-test.bash
+bash ./commands/zixiCat/copy-command2run-remote-bashrc.bash
+```

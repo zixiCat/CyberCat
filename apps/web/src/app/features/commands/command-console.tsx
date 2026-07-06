@@ -1,0 +1,39 @@
+import { CommandListPanel } from './command-list-panel';
+import { CommandTerminalPanel } from './command-terminal-panel';
+import { useCommandConsole } from './use-command-console';
+
+export const CommandConsole = () => {
+  const {
+    filter,
+    filterInputRef,
+    filteredCommands,
+    isLoadingCommands,
+    isRunning,
+    selectedCommand,
+    selectedCommandName,
+    terminalLines,
+    runCommand,
+    selectCommand,
+    setFilter,
+  } = useCommandConsole();
+
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5 p-5 lg:grid lg:grid-cols-[380px_minmax(0,1fr)]">
+      <CommandListPanel
+        filter={filter}
+        filterInputRef={filterInputRef}
+        isLoadingCommands={isLoadingCommands}
+        commands={filteredCommands}
+        selectedCommandName={selectedCommandName}
+        onFilterChange={setFilter}
+        onSelectCommand={selectCommand}
+      />
+      <CommandTerminalPanel
+        isRunning={isRunning}
+        selectedCommandName={selectedCommand?.name}
+        terminalLines={terminalLines}
+        onRun={() => runCommand()}
+      />
+    </main>
+  );
+};

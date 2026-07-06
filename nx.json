@@ -1,42 +1,88 @@
 {
-  "$schema"    : "./node_modules/nx/schemas/nx-schema.json",
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "master",
+  "analytics": false,
   "namedInputs": {
-    "default"      : ["{projectRoot}/**/*", "sharedGlobals"                                                    ],
-    "production"   : ["default",            "!{projectRoot}/.eslintrc.json", "!{projectRoot}/eslint.config.mjs"],
-    "sharedGlobals": [                                                                                         ]
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals"
+    ],
+    "production": [
+      "default",
+      "!{projectRoot}/.eslintrc.json",
+      "!{projectRoot}/eslint.config.mjs"
+    ],
+    "sharedGlobals": []
   },
-  "plugins"    : [
+  "plugins": [
     {
-      "plugin" : "@nx/js/typescript",
+      "plugin": "@nx/js/typescript",
       "options": {
-        "typecheck": {"targetName": "typecheck"},
-        "build"    : {
-          "targetName"   : "build",
-          "configName"   : "tsconfig.lib.json",
+        "typecheck": {
+          "targetName": "typecheck"
+        },
+        "build": {
+          "targetName": "build",
+          "configName": "tsconfig.lib.json",
           "buildDepsName": "build-deps",
           "watchDepsName": "watch-deps"
         }
       }
     },
     {
-      "plugin" : "@nx/webpack/plugin",
+      "plugin": "@nx/webpack/plugin",
       "options": {
-        "buildTargetName"      : "build",
-        "serveTargetName"      : "serve",
-        "previewTargetName"    : "preview",
-        "buildDepsTargetName"  : "build-deps",
-        "watchDepsTargetName"  : "watch-deps",
+        "buildTargetName": "build",
+        "serveTargetName": "serve",
+        "previewTargetName": "preview",
+        "buildDepsTargetName": "build-deps",
+        "watchDepsTargetName": "watch-deps",
         "serveStaticTargetName": "serve-static"
       }
     },
-    { "plugin": "@nx/eslint/plugin", "options": {"targetName": "lint"} }
+    {
+      "plugin": "@nx/eslint/plugin",
+      "options": {
+        "targetName": "lint"
+      }
+    }
   ],
-  "generators" : {
+  "generators": {
     "@nx/react": {
-      "application": {"babel": true, "style": "tailwind", "linter": "eslint", "bundler": "webpack"},
-      "component"  : {               "style": "tailwind"                                          },
-      "library"    : {               "style": "tailwind", "linter": "eslint"                      }
+      "application": {
+        "babel": true,
+        "style": "tailwind",
+        "linter": "eslint",
+        "bundler": "webpack"
+      },
+      "component": {
+        "style": "tailwind"
+      },
+      "library": {
+        "style": "tailwind",
+        "linter": "eslint"
+      }
     }
   },
-  "sync"       : {"applyChanges": false}
+  "neverConnectToCloud": true,
+  "targetDefaults": {
+    "@nx/esbuild:esbuild": {
+      "cache": true,
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "production",
+        "^production",
+        {
+          "json": "{workspaceRoot}/tsconfig.json",
+          "fields": [
+            "extends",
+            "files",
+            "include"
+          ]
+        }
+      ]
+    }
+  }
 }

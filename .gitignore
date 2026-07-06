@@ -8,6 +8,10 @@ out-tsc
 # dependencies
 node_modules
 
+# local environment
+.env
+!.env.example
+
 # IDEs and editors
 /.idea
 .project
@@ -40,27 +44,5 @@ Thumbs.db
 
 .nx/cache
 .nx/workspace-data
-
-# python
-__pycache__/
-.venv/
-.env
-.env.local
-
-# output
-build/
-output/
-*.mp4
-
-# build tools cache
-.tools/
-*.wav
-
-# BBDown local auth artifacts
-apps/service/src/scripts/bilibili/BBDown.data
-apps/service/src/scripts/bilibili/BBDownTV.data
-apps/service/src/scripts/bilibili/BBDownApp.data
-apps/service/src/scripts/bilibili/qrcode.png
-
-# Z
-z.*
+.claude/worktrees
+.claude/settings.local.json
