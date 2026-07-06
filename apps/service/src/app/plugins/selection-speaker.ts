@@ -67,7 +67,7 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
     let audioFilePath = '';
 
     try {
-      const selectedText = await getGlobalSelectedText(config.copyDelayMs);
+      const selectedText = await getGlobalSelectedText();
       const textToSpeak = trimSelectedText(selectedText, config.maxInputLength);
 
       if (!textToSpeak) {

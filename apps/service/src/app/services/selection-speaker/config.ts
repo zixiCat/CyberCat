@@ -7,7 +7,6 @@ export type SelectionSpeakerConfig = {
   readonly voice: string;
   readonly languageType: string;
   readonly maxInputLength: number;
-  readonly copyDelayMs: number;
 };
 
 const modelAliases: Record<string, string> = {
@@ -90,5 +89,4 @@ export const readSelectionSpeakerConfig = (env: NodeJS.ProcessEnv = process.env)
   voice: env.SELECTION_SPEAKER_TTS_VOICE?.trim() || 'Cherry',
   languageType: env.SELECTION_SPEAKER_TTS_LANGUAGE_TYPE?.trim() || 'Chinese',
   maxInputLength: parsePositiveInteger(env.SELECTION_SPEAKER_MAX_INPUT_LENGTH, 600),
-  copyDelayMs: parsePositiveInteger(env.SELECTION_SPEAKER_COPY_DELAY_MS, 0),
 });
