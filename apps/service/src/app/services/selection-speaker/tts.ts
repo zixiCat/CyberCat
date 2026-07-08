@@ -35,44 +35,37 @@ const extractAudioBase64 = (payload: unknown): string | null => {
   }
 
   const outputRecord = output as Record<string, unknown>;
-  const directAudio = outputRecord.audio;
 
+  // Case 1: output.data (Common for HttpSpeechSynthesizer)
+  if (typeof outputRecord.data === 'string' && outputRecord.data.length > 0) {
+    return outputRecord.data;
+  }
+
+  // Case 2: output.audio.data (Standard multimodal generation)
+  const directAudio = outputRecord.audio;
   if (directAudio && typeof directAudio === 'object') {
     const audioData = (directAudio as Record<string, unknown>).data;
-
     if (typeof audioData === 'string' && audioData.length > 0) {
       return audioData;
     }
   }
 
+  // Case 3: output.choices[0].message.audio.data (Chat-style multimodal generation)
   const choices = outputRecord.choices;
-
-  if (!Array.isArray(choices) || choices.length === 0) {
-    return null;
-  }
-
-  const firstChoice = choices[0];
-
-  if (!firstChoice || typeof firstChoice !== 'object') {
-    return null;
-  }
-
-  const message = (firstChoice as Record<string, unknown>).message;
-
-  if (!message || typeof message !== 'object') {
-    return null;
-  }
-
-  const audio = (message as Record<string, unknown>).audio;
-
-  if (!audio || typeof audio !== 'object') {
-    return null;
-  }
-
-  const audioData = (audio as Record<string, unknown>).data;
-
-  if (typeof audioData === 'string' && audioData.length > 0) {
-    return audioData;
+  if (Array.isArray(choices) && choices.length > 0) {
+    const firstChoice = choices[0];
+    if (firstChoice && typeof firstChoice === 'object') {
+      const message = (firstChoice as Record<string, unknown>).message;
+      if (message && typeof message === 'object') {
+        const audio = (message as Record<string, unknown>).audio;
+        if (audio && typeof audio === 'object') {
+          const audioData = (audio as Record<string, unknown>).data;
+          if (typeof audioData === 'string' && audioData.length > 0) {
+            return audioData;
+          }
+        }
+      }
+    }
   }
 
   return null;
@@ -134,91 +127,6 @@ const normalizeWavHeader = (audioBuffer: Buffer): Buffer => {
   return normalizedAudioBuffer;
 };
 
-const parseSseEvent = (rawEvent: string, audioChunks: Buffer[]): void => {
-  const lines = rawEvent.split(/\r?\n/);
-  let eventName = 'message';
-  const dataLines: string[] = [];
-
-  for (const line of lines) {
-    if (line.startsWith('event:')) {
-      eventName = line.slice('event:'.length).trim();
-      continue;
-    }
-
-    if (line.startsWith('data:')) {
-      dataLines.push(line.slice('data:'.length).trimStart());
-    }
-  }
-
-  const dataText = dataLines.join('\n').trim();
-
-  if (!dataText || dataText === '[DONE]') {
-    return;
-  }
-
-  let payload: unknown;
-
-  try {
-    payload = JSON.parse(dataText);
-  } catch {
-    return;
-  }
-
-  const errorMessage = extractErrorMessage(payload);
-
-  if (eventName === 'error' && errorMessage) {
-    throw new Error(errorMessage);
-  }
-
-  const audioBase64 = extractAudioBase64(payload);
-
-  if (audioBase64) {
-    audioChunks.push(Buffer.from(audioBase64, 'base64'));
-    return;
-  }
-
-  if (errorMessage) {
-    throw new Error(errorMessage);
-  }
-};
-
-const readSseAudio = async (response: Response): Promise<Buffer> => {
-  if (!response.body) {
-    throw new Error('DashScope TTS response did not include a readable body.');
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  const audioChunks: Buffer[] = [];
-  let pendingText = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-
-    pendingText += decoder.decode(value, { stream: !done });
-    const events = pendingText.split(/\r?\n\r?\n/);
-    pendingText = events.pop() ?? '';
-
-    for (const rawEvent of events) {
-      parseSseEvent(rawEvent, audioChunks);
-    }
-
-    if (done) {
-      break;
-    }
-  }
-
-  if (pendingText.trim()) {
-    parseSseEvent(pendingText, audioChunks);
-  }
-
-  if (audioChunks.length === 0) {
-    throw new Error('DashScope TTS stream did not return any audio data.');
-  }
-
-  return normalizeWavHeader(Buffer.concat(audioChunks));
-};
-
 const readJsonAudio = async (response: Response): Promise<Buffer> => {
   const payload = await response.json();
   const errorMessage = extractErrorMessage(payload);
@@ -266,8 +174,6 @@ export const synthesizeSpeech = async (
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      'X-DashScope-SSE': 'enable',
     },
     body: JSON.stringify({
       model: config.model,
@@ -281,12 +187,6 @@ export const synthesizeSpeech = async (
 
   if (!response.ok) {
     throw new Error(await readErrorResponse(response));
-  }
-
-  const contentType = response.headers.get('content-type') || '';
-
-  if (contentType.includes('text/event-stream')) {
-    return readSseAudio(response);
   }
 
   return readJsonAudio(response);

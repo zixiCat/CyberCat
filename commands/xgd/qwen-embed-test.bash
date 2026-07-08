@@ -3,7 +3,7 @@ CYBERCAT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$CYBERCAT_ROOT/.env"
 
-curl -X POST "${XGD_LLM_BASE_URL}/v1/embeddings" \
+curl -X POST "${XGD_LLM_BASE_URL}/embeddings" \
   -H "Authorization: Bearer ${XGD_LLM_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
