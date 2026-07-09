@@ -1,0 +1,1 @@
+export const apiBaseUrl = process.env['NX_PUBLIC_API_BASE_URL'] ?? '/api';

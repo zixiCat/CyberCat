@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { uIOhook, type UiohookKeyboardEvent } from 'uiohook-napi';
+import type { UiohookKeyboardEvent } from 'uiohook-napi';
 import {
   deleteAudioFile,
   getGlobalSelectedText,
@@ -8,9 +8,10 @@ import {
   parseHotkey,
   playAudioFile,
   readSelectionSpeakerConfig,
+  registerGlobalKeydownListener,
   synthesizeSpeech,
   writeAudioToTempFile,
-} from '../services/selection-speaker';
+} from '../automation/selection-speaker';
 
 const trimSelectedText = (value: string, maxInputLength: number): string => {
   const normalizedText = value.trim();
@@ -51,7 +52,7 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
   }
 
   let isRunning = false;
-  let isListening = false;
+  let stopListening: (() => void) | null = null;
 
   const onKeyDown = async (event: UiohookKeyboardEvent): Promise<void> => {
     if (!matchesHotkey(hotkey, event)) {
@@ -100,9 +101,12 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
     }
   };
 
-  uIOhook.on('keydown', onKeyDown);
-  uIOhook.start();
-  isListening = true;
+  try {
+    stopListening = registerGlobalKeydownListener(onKeyDown);
+  } catch (err) {
+    fastify.log.error({ err }, 'Selection speaker could not start the global keyboard hook.');
+    return;
+  }
 
   fastify.log.info(
     {
@@ -114,18 +118,16 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
   );
 
   fastify.addHook('onClose', async () => {
-    if (!isListening) {
+    if (!stopListening) {
       return;
     }
 
-    uIOhook.off('keydown', onKeyDown);
-
     try {
-      uIOhook.stop();
+      stopListening();
     } catch {
       fastify.log.warn('Selection speaker could not stop the global keyboard hook cleanly.');
+    } finally {
+      stopListening = null;
     }
-
-    isListening = false;
   });
 });

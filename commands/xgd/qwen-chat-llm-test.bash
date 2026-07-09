@@ -7,5 +7,5 @@ curl -X POST "${XGD_LLM_BASE_URL}/chat/completions" \
   -H "Authorization: Bearer ${XGD_LLM_API_KEY}" \
   -d '{
     "model": "qwen3.5",
-    "messages": [{"role": "user", "content": "What model are you using"}]
+    "messages": [{"role": "user", "content": "What model are you using"}],
   }'

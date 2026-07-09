@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { runPowerShell } from './powershell';
+import { runPowerShell } from '../selection-shortcuts';
 
 export const writeAudioToTempFile = async (audioData: Buffer): Promise<string> => {
   const filePath = path.join(os.tmpdir(), `cybercat-selection-speaker-${randomUUID()}.wav`);
@@ -25,6 +25,6 @@ export const deleteAudioFile = async (filePath: string): Promise<void> => {
   try {
     await fs.unlink(filePath);
   } catch {
-    return;
+    // Ignore temp cleanup failures.
   }
 };

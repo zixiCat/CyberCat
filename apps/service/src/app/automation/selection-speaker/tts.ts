@@ -36,12 +36,10 @@ const extractAudioBase64 = (payload: unknown): string | null => {
 
   const outputRecord = output as Record<string, unknown>;
 
-  // Case 1: output.data (Common for HttpSpeechSynthesizer)
   if (typeof outputRecord.data === 'string' && outputRecord.data.length > 0) {
     return outputRecord.data;
   }
 
-  // Case 2: output.audio.data (Standard multimodal generation)
   const directAudio = outputRecord.audio;
   if (directAudio && typeof directAudio === 'object') {
     const audioData = (directAudio as Record<string, unknown>).data;
@@ -50,7 +48,6 @@ const extractAudioBase64 = (payload: unknown): string | null => {
     }
   }
 
-  // Case 3: output.choices[0].message.audio.data (Chat-style multimodal generation)
   const choices = outputRecord.choices;
   if (Array.isArray(choices) && choices.length > 0) {
     const firstChoice = choices[0];

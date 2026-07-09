@@ -3,9 +3,8 @@ import { useSetState } from 'react-use';
 import { SSE, type SSEvent } from 'sse.js';
 import { matchSorter } from 'match-sorter';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { apiBaseUrl } from '../../api-base-url';
 import type { CommandConsoleState, CommandDefinition, TerminalLine } from './types';
-
-const apiBaseUrl = process.env['NX_PUBLIC_API_BASE_URL'] ?? '/api';
 
 const parseSseData = <T,>(event: SSEvent): T => JSON.parse(String(event.data)) as T;
 

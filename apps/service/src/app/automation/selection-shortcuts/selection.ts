@@ -14,7 +14,7 @@ const buildSelectionScript = (): string => `
     if ($prev) { [System.Windows.Forms.Clipboard]::SetDataObject($prev, $true) } else { [System.Windows.Forms.Clipboard]::Clear() }
 `;
 
-export const getGlobalSelectedText = async (): Promise<string> => { 
+export const getGlobalSelectedText = async (): Promise<string> => {
   const selectedText = await runPowerShell(buildSelectionScript());
 
   return selectedText.trim();
