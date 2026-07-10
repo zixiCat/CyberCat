@@ -9,16 +9,6 @@ export type SelectionAssistantConfig = {
   logFilePath: string;
 };
 
-const readPositiveInteger = (value: string | undefined, fallbackValue: number): number => {
-  const parsedValue = Number(value?.trim());
-
-  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
-    return fallbackValue;
-  }
-
-  return Math.trunc(parsedValue);
-};
-
 const resolvePath = (value: string): string => {
   return path.isAbsolute(value) ? value : path.resolve(process.cwd(), value);
 };

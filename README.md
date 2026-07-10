@@ -1,11 +1,7 @@
 # CyberCat
 
 <p align="center">
-	<img src="./brand/CyberCat.png" width="180" alt="CyberCat avatar" />
-</p>
-
-<p align="center">
-	<img src="./brand/CyberCat4Text.png" width="220" alt="CyberCat wordmark" />
+	<img src="./brand/CyberCatWithName.png" width="220" alt="CyberCat avatar" />
 </p>
 
 CyberCat is a small Nx workspace with:
