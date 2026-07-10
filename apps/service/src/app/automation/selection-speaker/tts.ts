@@ -15,8 +15,7 @@ export const synthesizeSpeech = async (
     {
       model: config.model,
       messages: [
-        { role: 'system' as const, content: "Just output user text" },
-        { role: 'user' as const, content: text }],
+        { role: 'user' as const, content: `Just repeat: ${text}` }],
       modalities: ['text', 'audio'] as Array<'audio' | 'text'>,
       audio: { format: 'pcm16' as const, voice: config.voice as never },
       stream: false,
