@@ -7,7 +7,6 @@ export type SelectionAssistantConfig = {
   model: string;
   promptFilePath: string;
   logFilePath: string;
-  requestTimeoutMs: number;
 };
 
 const readPositiveInteger = (value: string | undefined, fallbackValue: number): number => {
@@ -41,5 +40,4 @@ export const readSelectionAssistantConfig = (env: NodeJS.ProcessEnv = process.en
   model: env.SELECTION_ASSISTANT_MODEL?.trim() || 'gpt-4.1-mini',
   promptFilePath: resolvePromptFilePath(env.SELECTION_ASSISTANT_PROMPT_PATH),
   logFilePath: resolvePath(env.SELECTION_ASSISTANT_LOG_PATH?.trim() || 'tmp/selection-assistant-log.jsonl'),
-  requestTimeoutMs: readPositiveInteger(env.SELECTION_ASSISTANT_REQUEST_TIMEOUT_MS, 60_000),
 });

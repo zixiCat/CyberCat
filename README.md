@@ -67,7 +67,6 @@ Configure it in [`.env.example`](./.env.example) through these variables:
 - `SELECTION_ASSISTANT_API_KEY`, `SELECTION_ASSISTANT_BASE_URL`, and `SELECTION_ASSISTANT_MODEL` for the LLM endpoint
 - `SELECTION_ASSISTANT_PROMPT_PATH` to override the default prompt file at [apps/service/src/assets/selection-assistant.prompt.md](./apps/service/src/assets/selection-assistant.prompt.md)
 - `SELECTION_ASSISTANT_LOG_PATH` to choose the local JSONL log destination
-- `SELECTION_ASSISTANT_REQUEST_TIMEOUT_MS` to control the upstream request timeout
 
 ## Commands
 
