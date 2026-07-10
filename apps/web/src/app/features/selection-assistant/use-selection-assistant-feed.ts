@@ -13,9 +13,8 @@ const parseSseData = <T,>(event: SSEvent): T => JSON.parse(String(event.data)) a
 
 const initialState: SelectionAssistantFeedState = {
   connectionError: '',
-  entries: [],
+  entry: null,
   isConnected: false,
-  selectedEntryId: '',
   status: null,
 };
 
@@ -30,15 +29,12 @@ export const useSelectionAssistantFeed = () => {
     source.addEventListener('snapshot', (event: SSEvent) => {
       const snapshot = parseSseData<SelectionAssistantSnapshot>(event);
 
-      setState((previousState) => ({
+      setState({
         connectionError: '',
-        entries: snapshot.entries,
+        entry: snapshot.entry,
         isConnected: true,
-        selectedEntryId: snapshot.entries.some((entry) => entry.id === previousState.selectedEntryId)
-          ? previousState.selectedEntryId
-          : snapshot.entries[0]?.id ?? '',
         status: snapshot.status,
-      }));
+      });
     });
 
     source.addEventListener('status', (event: SSEvent) => {
@@ -54,12 +50,11 @@ export const useSelectionAssistantFeed = () => {
     source.addEventListener('entry', (event: SSEvent) => {
       const { entry } = parseSseData<{ entry: SelectionAssistantEntry }>(event);
 
-      setState((previousState) => ({
+      setState({
         connectionError: '',
-        entries: [entry, ...previousState.entries.filter((existingEntry) => existingEntry.id !== entry.id)],
+        entry,
         isConnected: true,
-        selectedEntryId: entry.id,
-      }));
+      });
     });
 
     source.addEventListener('error', (event: SSEvent) => {
@@ -80,14 +75,10 @@ export const useSelectionAssistantFeed = () => {
     };
   }, [setState]);
 
-  const selectedEntry = state.entries.find((entry) => entry.id === state.selectedEntryId) ?? state.entries[0];
-
   return {
     connectionError: state.connectionError,
-    entries: state.entries,
+    entry: state.entry,
     isConnected: state.isConnected,
-    selectEntry: (selectedEntryId: string) => setState({ selectedEntryId }),
-    selectedEntry,
     status: state.status,
   };
 };

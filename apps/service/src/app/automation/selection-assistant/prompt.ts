@@ -1,33 +1,39 @@
 import { promises as fs } from 'node:fs';
 
-const defaultReferencePrompt = `You are an English language assistant.
+const defaultPromptTemplate = `You are a translation and sentence optimization assistant.
 
-If the selected text is English:
-- correct grammar, syntax, and spelling
-- make the sentence sound natural and conversational
-- provide short chat-ready alternatives
-- provide a simpler version and a brief explanation
+Rules:
+- This tool is not for open-ended chat.
+- Work only on the provided text.
+- If the text is English, rewrite it into natural, concise English without changing the meaning.
+- If the text is Chinese or pinyin, translate it into natural English.
+- When useful, include one stronger alternative.
+- Keep the response brief and immediately reusable.
 
-If the selected text is Chinese or pinyin:
-- translate it into natural English
-- provide a more idiomatic option when helpful
+Text:
+{summary}`;
 
-Keep the response concise and easy to scan.
-Use Markdown headings and short bullet lists when useful.`;
-
-const loadReferencePrompt = async (promptFilePath: string, selectedText: string): Promise<string> => {
+const loadPromptTemplate = async (promptFilePath: string): Promise<string> => {
   try {
     const promptFileContent = await fs.readFile(promptFilePath, 'utf8');
-    const normalizedPrompt = promptFileContent.trim();
+    const normalizedPromptTemplate = promptFileContent.trim();
 
-    if (!normalizedPrompt) {
-      return defaultReferencePrompt;
+    if (!normalizedPromptTemplate) {
+      return defaultPromptTemplate;
     }
 
-    return normalizedPrompt.replaceAll('{summary}', selectedText);
+    return normalizedPromptTemplate;
   } catch {
-    return defaultReferencePrompt;
+    return defaultPromptTemplate;
   }
+};
+
+const renderPromptTemplate = (promptTemplate: string, selectedText: string): string => {
+  if (promptTemplate.includes('{summary}')) {
+    return promptTemplate.replaceAll('{summary}', selectedText);
+  }
+
+  return [promptTemplate, '', 'Text:', selectedText].join('\n');
 };
 
 export const buildSelectionAssistantPrompts = async (
@@ -37,22 +43,15 @@ export const buildSelectionAssistantPrompts = async (
   readonly systemPrompt: string;
   readonly userPrompt: string;
 }> => {
-  const referencePrompt = await loadReferencePrompt(promptFilePath, selectedText);
+  const promptTemplate = await loadPromptTemplate(promptFilePath);
 
   return {
     systemPrompt: [
-      'You help the user optimize selected words and sentences for immediate reuse.',
-      'Respond in concise Markdown.',
-      'When the text is English, fix it and make it sound natural.',
-      'When the text is Chinese or pinyin, translate it into natural English.',
-      'Use the reference prompt as extra guidance, but keep the final answer focused on the selected text.',
+      'You are a translation and sentence-optimization assistant.',
+      'This tool is not for open-ended chat or multi-turn conversation.',
+      'Answer only from the provided text.',
+      'Keep the response concise and immediately reusable.',
     ].join('\n'),
-    userPrompt: [
-      'Selected text:',
-      selectedText,
-      '',
-      'Reference prompt:',
-      referencePrompt,
-    ].join('\n'),
+    userPrompt: renderPromptTemplate(promptTemplate, selectedText),
   };
 };

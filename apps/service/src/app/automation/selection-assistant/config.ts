@@ -10,7 +10,6 @@ export type SelectionAssistantConfig = {
   readonly promptFilePath: string;
   readonly logFilePath: string;
   readonly requestTimeoutMs: number;
-  readonly historyLimit: number;
 };
 
 const readPositiveInteger = (value: string | undefined, fallbackValue: number): number => {
@@ -29,6 +28,14 @@ const resolvePath = (value: string): string => {
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
 
+const defaultPromptFilePath = path.resolve(__dirname, '../../../assets/selection-assistant.prompt.md');
+
+const resolvePromptFilePath = (value: string | undefined): string => {
+  const normalizedValue = value?.trim();
+
+  return normalizedValue ? resolvePath(normalizedValue) : defaultPromptFilePath;
+};
+
 export const readSelectionAssistantConfig = (env: NodeJS.ProcessEnv = process.env): SelectionAssistantConfig => ({
   enabled: env.SELECTION_ASSISTANT_ENABLED?.trim() === 'true',
   shortcut: env.SELECTION_ASSISTANT_SHORTCUT?.trim() || 'Ctrl+Shift+9',
@@ -36,8 +43,7 @@ export const readSelectionAssistantConfig = (env: NodeJS.ProcessEnv = process.en
   baseUrl: normalizeBaseUrl(env.SELECTION_ASSISTANT_BASE_URL?.trim() || env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com/v1'),
   model: env.SELECTION_ASSISTANT_MODEL?.trim() || 'gpt-4.1-mini',
   maxInputLength: readPositiveInteger(env.SELECTION_ASSISTANT_MAX_INPUT_LENGTH, 1200),
-  promptFilePath: resolvePath(env.SELECTION_ASSISTANT_PROMPT_PATH?.trim() || 'z.md'),
+  promptFilePath: resolvePromptFilePath(env.SELECTION_ASSISTANT_PROMPT_PATH),
   logFilePath: resolvePath(env.SELECTION_ASSISTANT_LOG_PATH?.trim() || 'tmp/selection-assistant-log.jsonl'),
   requestTimeoutMs: readPositiveInteger(env.SELECTION_ASSISTANT_REQUEST_TIMEOUT_MS, 60_000),
-  historyLimit: readPositiveInteger(env.SELECTION_ASSISTANT_HISTORY_LIMIT, 40),
 });

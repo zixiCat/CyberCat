@@ -25,7 +25,7 @@ export type SelectionAssistantStatus = {
 };
 
 export type SelectionAssistantSnapshot = {
-  readonly entries: SelectionAssistantEntry[];
+  readonly entry: SelectionAssistantEntry | null;
   readonly status: SelectionAssistantStatus;
 };
 

@@ -1,4 +1,4 @@
-import { Languages, Sparkles } from 'lucide-react';
+import { Languages } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -29,14 +29,14 @@ const formatTimestamp = (value: string): string => {
 };
 
 export const SelectionAssistantPanel = () => {
-  const { connectionError, entries, isConnected, selectEntry, selectedEntry, status } = useSelectionAssistantFeed();
+  const { connectionError, entry, isConnected, status } = useSelectionAssistantFeed();
 
   return (
     <section className="flex min-h-[520px] flex-col rounded-md border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-between border-b border-slate-200 p-5 dark:border-zinc-800">
         <div>
           <h2 className="text-xl font-semibold leading-tight">Selection Assistant</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">Global shortcut rewrite and translation feed</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">Single-result translation and rewrite helper</p>
         </div>
         <Languages className="h-6 w-6 text-sky-600 dark:text-sky-400" aria-hidden="true" />
       </div>
@@ -62,52 +62,11 @@ export const SelectionAssistantPanel = () => {
         </p>
       </div>
 
-      <div className="grid min-h-0 flex-1 xl:grid-cols-[230px_minmax(0,1fr)]">
-        <div className="border-b border-slate-200 p-3 dark:border-zinc-800 xl:border-b-0 xl:border-r">
-          <div className="grid max-h-[240px] gap-2 overflow-y-auto xl:max-h-none xl:h-full">
-            {entries.length === 0 ? (
-              <div className="rounded-md border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500 dark:border-zinc-700 dark:text-zinc-400">
-                No results yet. Trigger the shortcut after selecting text anywhere on Windows.
-              </div>
-            ) : (
-              entries.map((entry) => {
-                const isSelected = entry.id === selectedEntry?.id;
-
-                return (
-                  <motion.button
-                    key={entry.id}
-                    type="button"
-                    layout
-                    whileTap={{ scale: 0.99 }}
-                    className={`rounded-md border px-3 py-3 text-left transition-colors ${
-                      isSelected
-                        ? 'border-sky-500 bg-sky-50 text-sky-950 dark:border-sky-400 dark:bg-sky-950/40 dark:text-sky-50'
-                        : 'border-transparent hover:border-slate-200 hover:bg-slate-50 dark:hover:border-zinc-700 dark:hover:bg-zinc-800'
-                    }`}
-                    onClick={() => selectEntry(entry.id)}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="line-clamp-1 text-sm font-semibold leading-5">{entry.inputText || 'Selection failed'}</span>
-                      <Sparkles
-                        className={`h-4 w-4 ${entry.status === 'error' ? 'text-rose-500 dark:text-rose-300' : 'text-sky-600 dark:text-sky-300'}`}
-                        aria-hidden="true"
-                      />
-                    </div>
-                    <span className="mt-1 block text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
-                      {entry.status} · {formatTimestamp(entry.createdAt)}
-                    </span>
-                  </motion.button>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        <div className="min-h-0 overflow-y-auto p-5">
-          <AnimatePresence mode="wait">
-            {selectedEntry ? (
+      <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        <AnimatePresence mode="wait">
+          {entry ? (
               <motion.div
-                key={selectedEntry.id}
+                key={entry.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
@@ -117,31 +76,31 @@ export const SelectionAssistantPanel = () => {
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span
                     className={`rounded-full border px-3 py-1 font-medium ${
-                      selectedEntry.status === 'error'
+                      entry.status === 'error'
                         ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200'
                         : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200'
                     }`}
                   >
-                    {selectedEntry.status}
+                    {entry.status}
                   </span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                    {formatTimestamp(selectedEntry.createdAt)}
+                    {formatTimestamp(entry.createdAt)}
                   </span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                    {selectedEntry.model}
+                    {entry.model}
                   </span>
                 </div>
 
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Selected text</p>
                   <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 dark:text-zinc-200">
-                    {selectedEntry.inputText || 'No text was captured for this attempt.'}
+                    {entry.inputText || 'No text was captured for this attempt.'}
                   </p>
                 </div>
 
-                {selectedEntry.status === 'error' ? (
+                {entry.status === 'error' ? (
                   <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100">
-                    {selectedEntry.errorMessage || 'Selection assistant failed without a detailed error message.'}
+                    {entry.errorMessage || 'Selection assistant failed without a detailed error message.'}
                   </div>
                 ) : (
                   <div className="rounded-md border border-slate-200 p-4 dark:border-zinc-800">
@@ -169,7 +128,7 @@ export const SelectionAssistantPanel = () => {
                           strong: ({ children }) => <strong className="font-semibold text-slate-950 dark:text-zinc-50">{children}</strong>,
                         }}
                       >
-                        {selectedEntry.outputText}
+                        {entry.outputText}
                       </ReactMarkdown>
                     </div>
                   </div>
@@ -177,37 +136,36 @@ export const SelectionAssistantPanel = () => {
 
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-300">
                   <p>
-                    {selectedEntry.logSaved
-                      ? `Saved to ${selectedEntry.logFilePath}`
-                      : `Visible in the web UI, but writing the local log failed: ${selectedEntry.logErrorMessage ?? 'unknown error'}`}
+                    {entry.logSaved
+                      ? `Saved to ${entry.logFilePath}`
+                      : `Visible in the web UI, but writing the local log failed: ${entry.logErrorMessage ?? 'unknown error'}`}
                   </p>
                 </div>
 
                 <div className="grid gap-3 rounded-md border border-slate-200 p-4 text-sm text-slate-600 dark:border-zinc-800 dark:text-zinc-300">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Prompt file</p>
-                    <p className="mt-1 break-all">{selectedEntry.promptFilePath}</p>
+                    <p className="mt-1 break-all">{entry.promptFilePath}</p>
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Log file</p>
-                    <p className="mt-1 break-all">{selectedEntry.logFilePath}</p>
+                    <p className="mt-1 break-all">{entry.logFilePath}</p>
                   </div>
                 </div>
               </motion.div>
-            ) : (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
-                className="rounded-md border border-dashed border-slate-200 px-5 py-8 text-sm text-slate-500 dark:border-zinc-700 dark:text-zinc-400"
-              >
-                Waiting for the first selection assistant result.
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+          ) : (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="rounded-md border border-dashed border-slate-200 px-5 py-8 text-sm text-slate-500 dark:border-zinc-700 dark:text-zinc-400"
+            >
+              Waiting for the latest selection assistant result. Trigger the shortcut after selecting text anywhere on Windows.
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );

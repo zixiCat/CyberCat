@@ -9,12 +9,11 @@ import type {
 
 export const createSelectionAssistantController = (
   initialStatus: SelectionAssistantStatus,
-  historyLimit: number,
-  initialEntries: SelectionAssistantEntry[] = []
+  initialEntry: SelectionAssistantEntry | null = null
 ): SelectionAssistantController => {
   const listeners = new Set<SelectionAssistantListener>();
   let status = initialStatus;
-  let entries = initialEntries.slice(0, historyLimit);
+  let entry = initialEntry;
 
   const emit = (event: SelectionAssistantEvent) => {
     for (const listener of listeners) {
@@ -24,14 +23,14 @@ export const createSelectionAssistantController = (
 
   return {
     getSnapshot: (): SelectionAssistantSnapshot => ({
-      entries: [...entries],
+      entry,
       status,
     }),
-    publish: (entry) => {
-      entries = [entry, ...entries].slice(0, historyLimit);
+    publish: (nextEntry) => {
+      entry = nextEntry;
       emit({
         type: 'entry',
-        entry,
+        entry: nextEntry,
       });
     },
     setStatus: (nextStatus) => {

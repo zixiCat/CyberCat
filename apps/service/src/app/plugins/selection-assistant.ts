@@ -8,7 +8,7 @@ import {
   createSelectionAssistantController,
   generateSelectionAssistantResponse,
   readSelectionAssistantConfig,
-  readSelectionAssistantLog,
+  readSelectionAssistantLatestLogEntry,
   type SelectionAssistantController,
   type SelectionAssistantEntry,
   type SelectionAssistantRuntimeState,
@@ -77,15 +77,14 @@ const persistLogEntry = async (
 
 export default fp(async function selectionAssistantPlugin(fastify: FastifyInstance) {
   const config = readSelectionAssistantConfig();
-  const initialEntries = await readSelectionAssistantLog(config.logFilePath, config.historyLimit);
+  const initialEntry = await readSelectionAssistantLatestLogEntry(config.logFilePath);
   const controller = createSelectionAssistantController(
     createStatus(
       config.enabled ? 'idle' : 'disabled',
       config,
       config.enabled ? `Ready. Press ${config.shortcut} after selecting text.` : 'Selection assistant is disabled.'
     ),
-    config.historyLimit,
-    initialEntries
+    initialEntry
   );
 
   fastify.decorate('selectionAssistant', controller);

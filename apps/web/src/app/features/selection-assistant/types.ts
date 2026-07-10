@@ -25,14 +25,13 @@ export interface SelectionAssistantStatus {
 }
 
 export interface SelectionAssistantSnapshot {
-  entries: SelectionAssistantEntry[];
+  entry: SelectionAssistantEntry | null;
   status: SelectionAssistantStatus;
 }
 
 export interface SelectionAssistantFeedState {
-  entries: SelectionAssistantEntry[];
+  entry: SelectionAssistantEntry | null;
   status: SelectionAssistantStatus | null;
   isConnected: boolean;
   connectionError: string;
-  selectedEntryId: string;
 }
