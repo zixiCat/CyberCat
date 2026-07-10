@@ -10,7 +10,6 @@ export const synthesizeSpeech = async (
     baseURL: config.baseUrl,
   });
 
-  console.time();
   const response = await client.chat.completions.create(
     {
       model: config.model,
@@ -21,7 +20,6 @@ export const synthesizeSpeech = async (
       stream: false,
     }
   );
-  console.timeEnd();
 
   return Buffer.from(response.choices?.[1]?.message?.audio?.data || '', 'base64');
 };
