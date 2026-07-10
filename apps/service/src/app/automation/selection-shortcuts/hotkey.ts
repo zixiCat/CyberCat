@@ -1,12 +1,12 @@
 import { UiohookKey, type UiohookKeyboardEvent } from 'uiohook-napi';
 
 export type Hotkey = {
-  readonly shortcut: string;
-  readonly ctrl: boolean;
-  readonly alt: boolean;
-  readonly shift: boolean;
-  readonly meta: boolean;
-  readonly keycode: number;
+  shortcut: string;
+  ctrl: boolean;
+  alt: boolean;
+  shift: boolean;
+  meta: boolean;
+  keycode: number;
 };
 
 const normalizeToken = (value: string): string => {

@@ -1,10 +1,10 @@
 export type SelectionSpeakerConfig = {
-  readonly shortcut: string;
-  readonly apiKey: string;
-  readonly baseUrl: string;
-  readonly model: string;
-  readonly voice: string;
-  readonly maxInputLength: number;
+  shortcut: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  voice: string;
+  maxInputLength: number;
 };
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');

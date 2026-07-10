@@ -35,8 +35,8 @@ const extractMessageContent = (value: unknown): string => {
 export const generateSelectionAssistantResponse = async (
   config: Pick<SelectionAssistantConfig, 'apiKey' | 'baseUrl' | 'model' | 'requestTimeoutMs'>,
   prompts: {
-    readonly systemPrompt: string;
-    readonly userPrompt: string;
+    systemPrompt: string;
+    userPrompt: string;
   }
 ): Promise<string> => {
   const client = new OpenAI({

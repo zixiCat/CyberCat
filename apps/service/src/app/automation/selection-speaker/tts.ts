@@ -3,22 +3,22 @@ import OpenAI from 'openai';
 import type { SelectionSpeakerConfig } from './config';
 
 type WavFormat = {
-  readonly audioFormat: number;
-  readonly channels: number;
-  readonly sampleRate: number;
-  readonly byteRate: number;
-  readonly blockAlign: number;
-  readonly bitsPerSample: number;
+  audioFormat: number;
+  channels: number;
+  sampleRate: number;
+  byteRate: number;
+  blockAlign: number;
+  bitsPerSample: number;
 };
 
 type ParsedWavBuffer = {
-  readonly format: WavFormat | null;
-  readonly pcmData: Buffer;
+  format: WavFormat | null;
+  pcmData: Buffer;
 };
 
 type AudioState = {
-  readonly chunks: Buffer[];
-  readonly seenChunkHashes: Set<string>;
+  chunks: Buffer[];
+  seenChunkHashes: Set<string>;
   format: WavFormat | null;
 };
 

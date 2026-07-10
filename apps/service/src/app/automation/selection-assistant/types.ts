@@ -1,23 +1,23 @@
 export type SelectionAssistantEntry = {
-  readonly id: string;
-  readonly createdAt: string;
-  readonly shortcut: string;
-  readonly inputText: string;
-  readonly outputText: string;
-  readonly errorMessage?: string;
-  readonly model: string;
-  readonly promptFilePath: string;
+  id: string;
+  createdAt: string;
+  shortcut: string;
+  inputText: string;
+  outputText: string;
+  errorMessage?: string;
+  model: string;
+  promptFilePath: string;
 };
 
 export type SelectionAssistantSnapshot = {
-  readonly entry: SelectionAssistantEntry | null;
-  readonly shortcut: string;
+  entry: SelectionAssistantEntry | null;
+  shortcut: string;
 };
 
 export type SelectionAssistantListener = (entry: SelectionAssistantEntry) => void;
 
 export type SelectionAssistantController = {
-  readonly getSnapshot: () => SelectionAssistantSnapshot;
-  readonly publish: (entry: SelectionAssistantEntry) => void;
-  readonly subscribe: (listener: SelectionAssistantListener) => () => void;
+  getSnapshot: () => SelectionAssistantSnapshot;
+  publish: (entry: SelectionAssistantEntry) => void;
+  subscribe: (listener: SelectionAssistantListener) => () => void;
 };

@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs';
+import fs from 'fs-extra';
 import * as path from 'path';
 import type { CommandCatalog, CommandDefinition, SelectedCommandResult } from './types';
 
@@ -23,13 +23,13 @@ const toCommandDefinition = (candidateRoot: string, folder: string, prefix: stri
   };
 };
 
-const readCommandFolder = async (
+const readCommandFolder = (
   candidateRoot: string,
   folder: (typeof commandFolders)[number]
-): Promise<CommandDefinition[]> => {
+): CommandDefinition[] => {
   try {
     const commandDirectory = path.join(candidateRoot, 'commands', folder.folder);
-    const entries = await fs.readdir(commandDirectory, { withFileTypes: true });
+    const entries = fs.readdirSync(commandDirectory, { withFileTypes: true });
 
     return entries
       .filter((entry) => entry.isFile() && shellExtensions.has(path.extname(entry.name).toLowerCase()))
@@ -39,8 +39,8 @@ const readCommandFolder = async (
   }
 };
 
-const readCommandCatalog = async (candidateRoot: string): Promise<CommandCatalog | null> => {
-  const nestedCommands = await Promise.all(commandFolders.map((folder) => readCommandFolder(candidateRoot, folder)));
+const readCommandCatalog = (candidateRoot: string): CommandCatalog | null => {
+  const nestedCommands = commandFolders.map((folder) => readCommandFolder(candidateRoot, folder));
   const commands = nestedCommands.flat().sort((left, right) => left.name.localeCompare(right.name));
 
   if (commands.length === 0) {
@@ -53,7 +53,7 @@ const readCommandCatalog = async (candidateRoot: string): Promise<CommandCatalog
   };
 };
 
-const findCommandCatalog = async (): Promise<CommandCatalog> => {
+const findCommandCatalog = (): CommandCatalog => {
   const visitedRoots = new Set<string>();
   const rootsToSearch = [process.env.SCRIPTS_ROOT, process.cwd(), __dirname]
     .filter((value): value is string => Boolean(value))
@@ -65,7 +65,7 @@ const findCommandCatalog = async (): Promise<CommandCatalog> => {
     while (!visitedRoots.has(currentRoot)) {
       visitedRoots.add(currentRoot);
 
-      const catalog = await readCommandCatalog(currentRoot);
+      const catalog = readCommandCatalog(currentRoot);
 
       if (catalog) {
         return catalog;
@@ -85,13 +85,13 @@ const findCommandCatalog = async (): Promise<CommandCatalog> => {
 };
 
 export const loadCommands = async (): Promise<CommandDefinition[]> => {
-  const { commands } = await findCommandCatalog();
+  const { commands } = findCommandCatalog();
 
   return commands;
 };
 
-export const getSelectedCommand = async (name: string): Promise<SelectedCommandResult> => {
-  const catalog = await findCommandCatalog();
+export const getSelectedCommand = (name: string): SelectedCommandResult => {
+  const catalog = findCommandCatalog();
 
   return {
     ...catalog,
