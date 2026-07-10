@@ -37,7 +37,7 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
 
   if (!config.apiKey) {
     fastify.log.warn(
-      'Selection speaker is enabled but no DashScope API key was configured through SELECTION_SPEAKER_TTS_API_KEY or DASHSCOPE_API_KEY.'
+      'Selection speaker is enabled but no OpenAI-compatible API key was configured through SELECTION_SPEAKER_API_KEY.'
     );
     return;
   }

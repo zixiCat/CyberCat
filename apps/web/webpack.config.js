@@ -4,6 +4,39 @@ const { codeInspectorPlugin } = require('code-inspector-plugin');
 
 const { join } = require('path');
 
+const backendUnavailableMessage = JSON.stringify({
+  message: 'CyberCat service is unavailable. Start the service on http://localhost:3333 and retry.',
+});
+
+const isSseRequest = (req) => {
+  const acceptHeader = req.headers?.accept;
+
+  return (typeof acceptHeader === 'string' && acceptHeader.includes('text/event-stream'))
+    || req.url?.includes('/stream');
+};
+
+const writeProxyUnavailableResponse = (req, res) => {
+  if (res.headersSent) {
+    return;
+  }
+
+  if (isSseRequest(req)) {
+    res.writeHead(503, {
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'close',
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'X-Accel-Buffering': 'no',
+    });
+    res.end(`event: error\ndata: ${backendUnavailableMessage}\n\n`);
+    return;
+  }
+
+  res.writeHead(503, {
+    'Content-Type': 'application/json; charset=utf-8',
+  });
+  res.end(backendUnavailableMessage);
+};
+
 module.exports = {
   output: {
     path: join(__dirname, 'dist'),
@@ -14,7 +47,13 @@ module.exports = {
     proxy: [
       {
         context: ['/api'],
+        logLevel: 'silent',
         target: 'http://localhost:3333',
+        on: {
+          error: (_err, req, res) => {
+            writeProxyUnavailableResponse(req, res);
+          },
+        },
         pathRewrite: { '^/api': '' },
       },
     ],

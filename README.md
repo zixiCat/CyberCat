@@ -12,6 +12,7 @@ CyberCat is a small Nx workspace with:
 
 - a Fastify service that discovers runnable script commands and streams output over Server-Sent Events
 - a React web app that lets you filter, run, and watch those commands in a terminal-style UI
+- a global shortcut selection speaker that captures selected text and asks an OpenAI-compatible qwen-omni model to speak it
 - a global shortcut selection assistant that can capture selected text, call an OpenAI-compatible chat endpoint, stream the result into the web UI, and append a local JSONL log
 - colocated command entrypoints under [commands](./commands) and a local `.env` file in the `CyberCat` root
 
@@ -44,6 +45,18 @@ Build both apps:
 npx nx build @cyber-cat/service
 npx nx build @cyber-cat/web
 ```
+
+## Selection Speaker
+
+The selection speaker listens for a global shortcut, reads the current Windows selection, requests audio from an OpenAI-compatible chat completions endpoint, writes a temporary WAV file, and plays it locally.
+
+Configure it in [`.env.example`](./.env.example) through these variables:
+
+- `SELECTION_SPEAKER_ENABLED` to turn the plugin on
+- `SELECTION_SPEAKER_SHORTCUT` to change the global shortcut
+- `SELECTION_SPEAKER_API_KEY`, `SELECTION_SPEAKER_BASE_URL`, and `SELECTION_SPEAKER_MODEL` for the audio-capable LLM endpoint
+- `SELECTION_SPEAKER_VOICE` to choose among the currently supported qwen-omni voices: `Ethan`, `Chelsie`, or `Aiden`
+- `SELECTION_SPEAKER_MAX_INPUT_LENGTH` to cap the captured selection before sending it upstream
 
 ## Selection Assistant
 

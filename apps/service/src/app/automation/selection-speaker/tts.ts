@@ -1,190 +1,220 @@
+import { createHash } from 'node:crypto';
+import OpenAI from 'openai';
 import type { SelectionSpeakerConfig } from './config';
 
-const selectionSpeakerEndpointPath = '/services/aigc/multimodal-generation/generation';
+type WavFormat = {
+  readonly audioFormat: number;
+  readonly channels: number;
+  readonly sampleRate: number;
+  readonly byteRate: number;
+  readonly blockAlign: number;
+  readonly bitsPerSample: number;
+};
 
-const extractErrorMessage = (payload: unknown): string | null => {
-  if (!payload || typeof payload !== 'object') {
+type ParsedWavBuffer = {
+  readonly format: WavFormat | null;
+  readonly pcmData: Buffer;
+};
+
+type AudioState = {
+  readonly chunks: Buffer[];
+  readonly seenChunkHashes: Set<string>;
+  format: WavFormat | null;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return Boolean(value && typeof value === 'object');
+};
+
+const isLikelyBase64Audio = (value: string): boolean => {
+  return value.length > 50 && /^[A-Za-z0-9+/=]+$/.test(value);
+};
+
+const parseWavBuffer = (buffer: Buffer): ParsedWavBuffer | null => {
+  if (buffer.length < 12) {
     return null;
   }
 
-  const payloadRecord = payload as Record<string, unknown>;
-  const message = payloadRecord.message;
-  const code = payloadRecord.code;
-
-  if (typeof message === 'string' && typeof code === 'string') {
-    return `${code}: ${message}`;
-  }
-
-  if (typeof message === 'string') {
-    return message;
-  }
-
-  return null;
-};
-
-const extractAudioBase64 = (payload: unknown): string | null => {
-  if (!payload || typeof payload !== 'object') {
+  if (buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WAVE') {
     return null;
   }
 
-  const payloadRecord = payload as Record<string, unknown>;
-  const output = payloadRecord.output;
+  let offset = 12;
+  let format: WavFormat | null = null;
+  let pcmData: Buffer | null = null;
 
-  if (!output || typeof output !== 'object') {
-    return null;
-  }
+  while (offset + 8 <= buffer.length) {
+    const chunkId = buffer.toString('ascii', offset, offset + 4);
+    const chunkSize = buffer.readUInt32LE(offset + 4);
+    const chunkStart = offset + 8;
+    const chunkEnd = Math.min(chunkStart + chunkSize, buffer.length);
 
-  const outputRecord = output as Record<string, unknown>;
-
-  if (typeof outputRecord.data === 'string' && outputRecord.data.length > 0) {
-    return outputRecord.data;
-  }
-
-  const directAudio = outputRecord.audio;
-  if (directAudio && typeof directAudio === 'object') {
-    const audioData = (directAudio as Record<string, unknown>).data;
-    if (typeof audioData === 'string' && audioData.length > 0) {
-      return audioData;
-    }
-  }
-
-  const choices = outputRecord.choices;
-  if (Array.isArray(choices) && choices.length > 0) {
-    const firstChoice = choices[0];
-    if (firstChoice && typeof firstChoice === 'object') {
-      const message = (firstChoice as Record<string, unknown>).message;
-      if (message && typeof message === 'object') {
-        const audio = (message as Record<string, unknown>).audio;
-        if (audio && typeof audio === 'object') {
-          const audioData = (audio as Record<string, unknown>).data;
-          if (typeof audioData === 'string' && audioData.length > 0) {
-            return audioData;
-          }
-        }
-      }
-    }
-  }
-
-  return null;
-};
-
-type WavChunk = {
-  readonly offset: number;
-  readonly size: number;
-  readonly dataOffset: number;
-};
-
-const findWavChunk = (audioBuffer: Buffer, chunkName: string, startOffset = 12): WavChunk | null => {
-  let offset = startOffset;
-
-  while (offset + 8 <= audioBuffer.length) {
-    const currentChunkName = audioBuffer.subarray(offset, offset + 4).toString('ascii');
-    const currentChunkSize = audioBuffer.readUInt32LE(offset + 4);
-
-    if (currentChunkName === chunkName) {
-      return {
-        offset,
-        size: currentChunkSize,
-        dataOffset: offset + 8,
+    if (chunkId === 'fmt ' && chunkStart + 16 <= buffer.length) {
+      format = {
+        audioFormat: buffer.readUInt16LE(chunkStart),
+        channels: buffer.readUInt16LE(chunkStart + 2),
+        sampleRate: buffer.readUInt32LE(chunkStart + 4),
+        byteRate: buffer.readUInt32LE(chunkStart + 8),
+        blockAlign: buffer.readUInt16LE(chunkStart + 12),
+        bitsPerSample: buffer.readUInt16LE(chunkStart + 14),
       };
     }
 
-    offset += 8 + currentChunkSize + (currentChunkSize % 2);
-  }
-
-  return null;
-};
-
-const normalizeWavHeader = (audioBuffer: Buffer): Buffer => {
-  if (audioBuffer.length < 12) {
-    return audioBuffer;
-  }
-
-  if (audioBuffer.subarray(0, 4).toString('ascii') !== 'RIFF') {
-    return audioBuffer;
-  }
-
-  if (audioBuffer.subarray(8, 12).toString('ascii') !== 'WAVE') {
-    return audioBuffer;
-  }
-
-  const normalizedAudioBuffer = Buffer.from(audioBuffer);
-  const totalRiffSize = Math.max(0, normalizedAudioBuffer.length - 8);
-  normalizedAudioBuffer.writeUInt32LE(totalRiffSize, 4);
-
-  const dataChunk = findWavChunk(normalizedAudioBuffer, 'data');
-
-  if (!dataChunk) {
-    return normalizedAudioBuffer;
-  }
-
-  const actualDataSize = Math.max(0, normalizedAudioBuffer.length - dataChunk.dataOffset);
-  normalizedAudioBuffer.writeUInt32LE(actualDataSize, dataChunk.offset + 4);
-
-  return normalizedAudioBuffer;
-};
-
-const readJsonAudio = async (response: Response): Promise<Buffer> => {
-  const payload = await response.json();
-  const errorMessage = extractErrorMessage(payload);
-
-  if (errorMessage) {
-    throw new Error(errorMessage);
-  }
-
-  const audioBase64 = extractAudioBase64(payload);
-
-  if (!audioBase64) {
-    throw new Error('DashScope TTS response did not include audio data.');
-  }
-
-  return normalizeWavHeader(Buffer.from(audioBase64, 'base64'));
-};
-
-const readErrorResponse = async (response: Response): Promise<string> => {
-  const responseText = await response.text();
-
-  if (!responseText) {
-    return `DashScope TTS request failed with status ${response.status}.`;
-  }
-
-  try {
-    const payload = JSON.parse(responseText) as unknown;
-    const errorMessage = extractErrorMessage(payload);
-
-    if (errorMessage) {
-      return `DashScope TTS request failed with status ${response.status}: ${errorMessage}`;
+    if (chunkId === 'data') {
+      pcmData = buffer.subarray(chunkStart, chunkEnd);
     }
-  } catch {
-    return `DashScope TTS request failed with status ${response.status}: ${responseText.trim()}`;
+
+    offset = chunkEnd + (chunkSize % 2);
   }
 
-  return `DashScope TTS request failed with status ${response.status}: ${responseText.trim()}`;
+  if (!pcmData) {
+    return null;
+  }
+
+  return {
+    format,
+    pcmData,
+  };
+};
+
+const writePcmAsWav = (pcmData: Buffer, format: WavFormat | null): Buffer => {
+  const channels = format?.channels ?? 1;
+  const sampleRate = format?.sampleRate ?? 24000;
+  const bitsPerSample = format?.bitsPerSample ?? 16;
+  const blockAlign = format?.blockAlign ?? (channels * bitsPerSample) / 8;
+  const byteRate = format?.byteRate ?? sampleRate * blockAlign;
+  const header = Buffer.alloc(44);
+
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + pcmData.length, 4);
+  header.write('WAVEfmt ', 8);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(pcmData.length, 40);
+
+  return Buffer.concat([header, pcmData]);
+};
+
+const appendAudioBase64 = (audioState: AudioState, base64: string): void => {
+  const audioBuffer = Buffer.from(base64, 'base64');
+  const wav = parseWavBuffer(audioBuffer);
+
+  if (wav) {
+    const pcmHash = createHash('sha1').update(wav.pcmData).digest('hex');
+
+    if (audioState.seenChunkHashes.has(pcmHash)) {
+      return;
+    }
+
+    audioState.seenChunkHashes.add(pcmHash);
+    audioState.chunks.push(wav.pcmData);
+    audioState.format ??= wav.format;
+    return;
+  }
+
+  audioState.chunks.push(audioBuffer);
+};
+
+const appendAudioField = (audioState: AudioState, value: unknown): void => {
+  if (!isRecord(value) || typeof value.data !== 'string' || !value.data) {
+    return;
+  }
+
+  appendAudioBase64(audioState, value.data);
+};
+
+const appendAudioFromContentPart = (audioState: AudioState, value: unknown): void => {
+  if (!isRecord(value)) {
+    return;
+  }
+
+  appendAudioField(audioState, value.audio);
+
+  if (typeof value.text === 'string' && isLikelyBase64Audio(value.text)) {
+    appendAudioBase64(audioState, value.text);
+  }
+};
+
+const appendAudioFromChunk = (audioState: AudioState, chunk: unknown): void => {
+  if (!isRecord(chunk)) {
+    return;
+  }
+
+  appendAudioField(audioState, chunk.audio);
+
+  if (typeof chunk.content === 'string' && isLikelyBase64Audio(chunk.content)) {
+    appendAudioBase64(audioState, chunk.content);
+  }
+
+  if (!Array.isArray(chunk.choices) || chunk.choices.length === 0) {
+    return;
+  }
+
+  const firstChoice = chunk.choices[0];
+
+  if (!isRecord(firstChoice)) {
+    return;
+  }
+
+  appendAudioField(audioState, firstChoice.audio);
+
+  if (isRecord(firstChoice.message)) {
+    appendAudioField(audioState, firstChoice.message.audio);
+  }
+
+  if (!isRecord(firstChoice.delta)) {
+    return;
+  }
+
+  appendAudioField(audioState, firstChoice.delta.audio);
+
+  if (typeof firstChoice.delta.content === 'string' && isLikelyBase64Audio(firstChoice.delta.content)) {
+    appendAudioBase64(audioState, firstChoice.delta.content);
+    return;
+  }
+
+  if (Array.isArray(firstChoice.delta.content)) {
+    for (const part of firstChoice.delta.content) {
+      appendAudioFromContentPart(audioState, part);
+    }
+  }
 };
 
 export const synthesizeSpeech = async (
-  config: Pick<SelectionSpeakerConfig, 'apiKey' | 'baseUrl' | 'model' | 'voice' | 'languageType'>,
+  config: Pick<SelectionSpeakerConfig, 'apiKey' | 'baseUrl' | 'model' | 'voice'>,
   text: string
 ): Promise<Buffer> => {
-  const response = await fetch(`${config.baseUrl}${selectionSpeakerEndpointPath}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: config.model,
-      input: {
-        text,
-        voice: config.voice,
-        language_type: config.languageType,
-      },
-    }),
+  const client = new OpenAI({
+    apiKey: config.apiKey,
+    baseURL: config.baseUrl,
   });
+  const audioState: AudioState = {
+    chunks: [],
+    seenChunkHashes: new Set<string>(),
+    format: null,
+  };
+  const request = {
+    model: config.model,
+    messages: [{ role: 'user' as const, content: text }],
+    modalities: ['audio'] as Array<'audio' | 'text'>,
+    audio: { format: 'pcm16' as const, voice: config.voice as never },
+    stream: true as const,
+  };
+  const stream = await client.chat.completions.create(request);
 
-  if (!response.ok) {
-    throw new Error(await readErrorResponse(response));
+  for await (const chunk of stream) {
+    appendAudioFromChunk(audioState, chunk);
   }
 
-  return readJsonAudio(response);
+  if (audioState.chunks.length === 0) {
+    throw new Error('Selection speaker response did not include audio data.');
+  }
+
+  return writePcmAsWav(Buffer.concat(audioState.chunks), audioState.format);
 };
