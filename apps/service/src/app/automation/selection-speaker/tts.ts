@@ -199,14 +199,15 @@ export const synthesizeSpeech = async (
     seenChunkHashes: new Set<string>(),
     format: null,
   };
-  const request = {
-    model: config.model,
-    messages: [{ role: 'user' as const, content: text }],
-    modalities: ['audio'] as Array<'audio' | 'text'>,
-    audio: { format: 'pcm16' as const, voice: config.voice as never },
-    stream: true as const,
-  };
-  const stream = await client.chat.completions.create(request);
+  const stream = await client.chat.completions.create(
+    {
+      model: config.model,
+      messages: [{ role: 'user' as const, content: text }],
+      modalities: ['audio'] as Array<'audio' | 'text'>,
+      audio: { format: 'pcm16' as const, voice: config.voice as never },
+      stream: true as const,
+    }
+  );
 
   for await (const chunk of stream) {
     appendAudioFromChunk(audioState, chunk);

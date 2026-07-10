@@ -9,8 +9,7 @@ import {
   generateSelectionAssistantResponse,
   readSelectionAssistantConfig,
   readSelectionAssistantLatestLogEntry,
-  type SelectionAssistantController,
-  type SelectionAssistantEntry,
+  SelectionAssistantEntry,
 } from '../automation/selection-assistant';
 import {
   getGlobalSelectedText,
@@ -18,24 +17,6 @@ import {
   parseHotkey,
   registerGlobalKeydownListener,
 } from '../automation/selection-shortcuts';
-
-declare module 'fastify' {
-  interface FastifyInstance {
-    selectionAssistant: SelectionAssistantController;
-  }
-}
-
-const assertSelectionAssistantRuntime = (
-  config: ReturnType<typeof readSelectionAssistantConfig>,
-): void => {
-  if (process.platform !== 'win32') {
-    throw new Error('Selection assistant is only supported on Windows.');
-  }
-
-  if (!config.apiKey) {
-    throw new Error('Selection assistant requires SELECTION_ASSISTANT_API_KEY or OPENAI_API_KEY.');
-  }
-};
 
 const createSelectionAssistantEntry = (
   config: ReturnType<typeof readSelectionAssistantConfig>,
@@ -70,26 +51,15 @@ const runSelectionAssistantTask = (
         return null;
       }
 
-      return buildSelectionAssistantPrompts(config.promptFilePath, inputText)
-        .then((prompts) => generateSelectionAssistantResponse(config, prompts))
+      const prompts = buildSelectionAssistantPrompts(config.promptFilePath, inputText);
+
+      return generateSelectionAssistantResponse(config, prompts)
         .then((outputText) => createSelectionAssistantEntry(config, shortcut, inputText, outputText));
     })
-    .catch((err) => {
-      fastify.log.error({ err }, 'Selection assistant failed.');
-
-      return createSelectionAssistantEntry(
-        config,
-        shortcut,
-        inputText,
-        '',
-        err instanceof Error ? err.message : 'Selection assistant failed.'
-      );
-    });
 };
 
 export default fp(async function selectionAssistantPlugin(fastify: FastifyInstance) {
   const config = readSelectionAssistantConfig();
-  assertSelectionAssistantRuntime(config);
   const hotkey = parseHotkey(config.shortcut);
   const initialEntry = await readSelectionAssistantLatestLogEntry(config.logFilePath);
   const controller = createSelectionAssistantController(hotkey.shortcut, initialEntry);

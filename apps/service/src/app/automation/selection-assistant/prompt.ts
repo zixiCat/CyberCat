@@ -16,8 +16,8 @@ export const buildSelectionAssistantPrompts = (
   promptFilePath: string,
   selectedText: string
 ): {
-  systemPrompt: string;
-  userPrompt: string;
+  readonly systemPrompt: string;
+  readonly userPrompt: string;
 } => {
   const promptTemplate = loadPromptTemplate(promptFilePath);
 
