@@ -203,7 +203,7 @@ export const synthesizeSpeech = async (
     {
       model: config.model,
       messages: [{ role: 'user' as const, content: text }],
-      modalities: ['audio'] as Array<'audio' | 'text'>,
+      modalities: ['text', 'audio'] as Array<'audio' | 'text'>,
       audio: { format: 'pcm16' as const, voice: config.voice as never },
       stream: true as const,
     }
