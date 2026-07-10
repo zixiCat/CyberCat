@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { promises as fs } from 'node:fs';
+import fs from 'fs-extra';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { runPowerShell } from '../selection-shortcuts';
 
-export const writeAudioToTempFile = async (audioData: Buffer): Promise<string> => {
+export const writeAudioToTempFile = (audioData: Buffer) => {
   const filePath = path.join(os.tmpdir(), `cybercat-selection-speaker-${randomUUID()}.wav`);
 
-  await fs.writeFile(filePath, audioData);
+  fs.writeFileSync(filePath, audioData);
 
   return filePath;
 };

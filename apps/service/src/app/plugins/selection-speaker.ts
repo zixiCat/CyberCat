@@ -14,6 +14,7 @@ import {
 } from '../automation/selection-speaker';
 
 const trimSelectedText = (value: string, maxInputLength: number): string => {
+  console.log('Trimming selected text:', value);
   const normalizedText = value.trim();
 
   if (normalizedText.length <= maxInputLength) {
@@ -83,9 +84,9 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
       }
 
       const audioBuffer = await synthesizeSpeech(config, textToSpeak);
-      audioFilePath = await writeAudioToTempFile(audioBuffer);
-
+      audioFilePath = writeAudioToTempFile(audioBuffer);
       await playAudioFile(audioFilePath);
+
     } catch (err) {
       fastify.log.error({ err }, 'Selection speaker failed.');
     } finally {

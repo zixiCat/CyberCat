@@ -17,5 +17,7 @@ const buildSelectionScript = (): string => `
 export const getGlobalSelectedText = async (): Promise<string> => {
   const selectedText = await runPowerShell(buildSelectionScript());
 
+  console.log('Selected text:', selectedText);
+
   return selectedText.trim();
 };
