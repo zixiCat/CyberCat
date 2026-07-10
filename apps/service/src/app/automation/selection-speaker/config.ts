@@ -1,5 +1,4 @@
 export type SelectionSpeakerConfig = {
-  readonly enabled: boolean;
   readonly shortcut: string;
   readonly apiKey: string;
   readonly baseUrl: string;
@@ -11,7 +10,6 @@ export type SelectionSpeakerConfig = {
 const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
 
 export const readSelectionSpeakerConfig = (env: NodeJS.ProcessEnv = process.env): SelectionSpeakerConfig => ({
-  enabled: Boolean(env.SELECTION_SPEAKER_ENABLED?.trim() === 'true'),
   shortcut: env.SELECTION_SPEAKER_SHORTCUT?.trim() || 'Ctrl+Shift+0',
   apiKey: env.SELECTION_SPEAKER_API_KEY?.trim() || '',
   baseUrl: normalizeBaseUrl(env.SELECTION_SPEAKER_BASE_URL?.trim() || 'https://dashscope.aliyuncs.com/compatible-mode/v1'),

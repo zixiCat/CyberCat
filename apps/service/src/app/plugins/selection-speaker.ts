@@ -26,10 +26,6 @@ const trimSelectedText = (value: string, maxInputLength: number): string => {
 export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance) {
   const config = readSelectionSpeakerConfig();
 
-  if (!config.enabled) {
-    return;
-  }
-
   if (process.platform !== 'win32') {
     fastify.log.warn('Selection speaker is only supported on Windows.');
     return;

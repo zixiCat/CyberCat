@@ -11,8 +11,6 @@ import {
   readSelectionAssistantLatestLogEntry,
   type SelectionAssistantController,
   type SelectionAssistantEntry,
-  type SelectionAssistantRuntimeState,
-  type SelectionAssistantStatus,
 } from '../automation/selection-assistant';
 import {
   getGlobalSelectedText,
@@ -27,106 +25,80 @@ declare module 'fastify' {
   }
 }
 
-const trimSelectedText = (value: string, maxInputLength: number): string => {
-  const normalizedText = value.trim();
-
-  if (normalizedText.length <= maxInputLength) {
-    return normalizedText;
+const assertSelectionAssistantRuntime = (
+  config: ReturnType<typeof readSelectionAssistantConfig>,
+): void => {
+  if (process.platform !== 'win32') {
+    throw new Error('Selection assistant is only supported on Windows.');
   }
 
-  return normalizedText.slice(0, maxInputLength).trimEnd();
+  if (!config.apiKey) {
+    throw new Error('Selection assistant requires SELECTION_ASSISTANT_API_KEY or OPENAI_API_KEY.');
+  }
 };
 
-const createStatus = (
-  state: SelectionAssistantRuntimeState,
+const createSelectionAssistantEntry = (
   config: ReturnType<typeof readSelectionAssistantConfig>,
-  message: string
-): SelectionAssistantStatus => ({
-  state,
-  message,
-  shortcut: config.shortcut,
+  shortcut: string,
+  inputText: string,
+  outputText: string,
+  errorMessage?: string
+): SelectionAssistantEntry => ({
+  id: randomUUID(),
+  createdAt: new Date().toISOString(),
+  shortcut,
+  inputText,
+  outputText,
+  errorMessage,
   model: config.model,
   promptFilePath: config.promptFilePath,
-  logFilePath: config.logFilePath,
 });
 
-const persistLogEntry = async (
-  entry: Omit<SelectionAssistantEntry, 'logSaved' | 'logErrorMessage'>,
-  logFilePath: string,
+const runSelectionAssistantTask = (
+  config: ReturnType<typeof readSelectionAssistantConfig>,
+  shortcut: string,
   fastify: FastifyInstance
-): Promise<SelectionAssistantEntry> => {
-  try {
-    const persistedEntry: SelectionAssistantEntry = {
-      ...entry,
-      logSaved: true,
-    };
+): Promise<SelectionAssistantEntry | null> => {
+  let inputText = '';
 
-    await appendSelectionAssistantLog(logFilePath, persistedEntry);
+  return getGlobalSelectedText()
+    .then((selectedText) => {
+      inputText = selectedText.trim();
 
-    return persistedEntry;
-  } catch (err) {
-    fastify.log.error({ err, logFilePath }, 'Selection assistant could not write the local log entry.');
+      if (!inputText) {
+        fastify.log.warn('Selection assistant did not capture any selected text.');
+        return null;
+      }
 
-    return {
-      ...entry,
-      logSaved: false,
-      logErrorMessage: err instanceof Error ? err.message : 'Unknown log write failure.',
-    };
-  }
+      return buildSelectionAssistantPrompts(config.promptFilePath, inputText)
+        .then((prompts) => generateSelectionAssistantResponse(config, prompts))
+        .then((outputText) => createSelectionAssistantEntry(config, shortcut, inputText, outputText));
+    })
+    .catch((err) => {
+      fastify.log.error({ err }, 'Selection assistant failed.');
+
+      return createSelectionAssistantEntry(
+        config,
+        shortcut,
+        inputText,
+        '',
+        err instanceof Error ? err.message : 'Selection assistant failed.'
+      );
+    });
 };
 
 export default fp(async function selectionAssistantPlugin(fastify: FastifyInstance) {
   const config = readSelectionAssistantConfig();
+  assertSelectionAssistantRuntime(config);
+  const hotkey = parseHotkey(config.shortcut);
   const initialEntry = await readSelectionAssistantLatestLogEntry(config.logFilePath);
-  const controller = createSelectionAssistantController(
-    createStatus(
-      config.enabled ? 'idle' : 'disabled',
-      config,
-      config.enabled ? `Ready. Press ${config.shortcut} after selecting text.` : 'Selection assistant is disabled.'
-    ),
-    initialEntry
-  );
+  const controller = createSelectionAssistantController(hotkey.shortcut, initialEntry);
 
   fastify.decorate('selectionAssistant', controller);
 
-  if (!config.enabled) {
-    return;
-  }
-
-  if (process.platform !== 'win32') {
-    controller.setStatus(createStatus('unsupported', config, 'Selection assistant is only supported on Windows.'));
-    fastify.log.warn('Selection assistant is only supported on Windows.');
-    return;
-  }
-
-  if (!config.apiKey) {
-    controller.setStatus(
-      createStatus(
-        'misconfigured',
-        config,
-        'Selection assistant is enabled but no API key was configured through SELECTION_ASSISTANT_API_KEY or OPENAI_API_KEY.'
-      )
-    );
-    fastify.log.warn(
-      'Selection assistant is enabled but no API key was configured through SELECTION_ASSISTANT_API_KEY or OPENAI_API_KEY.'
-    );
-    return;
-  }
-
-  let hotkey;
-
-  try {
-    hotkey = parseHotkey(config.shortcut);
-  } catch (err) {
-    controller.setStatus(createStatus('misconfigured', config, 'Selection assistant shortcut is invalid.'));
-    fastify.log.error({ err, shortcut: config.shortcut }, 'Selection assistant shortcut is invalid.');
-    return;
-  }
-
   let isRunning = false;
-  let stopListening: (() => void) | null = null;
 
-  const onKeyDown = async (event: UiohookKeyboardEvent): Promise<void> => {
+  const onKeyDown = (event: UiohookKeyboardEvent): void => {
     if (!matchesHotkey(hotkey, event)) {
       return;
     }
@@ -137,82 +109,24 @@ export default fp(async function selectionAssistantPlugin(fastify: FastifyInstan
     }
 
     isRunning = true;
-    controller.setStatus(createStatus('busy', config, 'Processing the current selection...'));
-    let inputText = '';
+    void runSelectionAssistantTask(config, hotkey.shortcut, fastify)
+      .then((entry) => {
+        if (!entry) {
+          return;
+        }
 
-    try {
-      const selectedText = await getGlobalSelectedText();
-      inputText = trimSelectedText(selectedText, config.maxInputLength);
+        controller.publish(entry);
 
-      if (!inputText) {
-        controller.setStatus(createStatus('idle', config, 'No selected text was captured. Select text and try again.'));
-        fastify.log.warn('Selection assistant did not capture any selected text.');
-        return;
-      }
-
-      if (inputText.length < selectedText.trim().length) {
-        fastify.log.info(
-          {
-            originalLength: selectedText.trim().length,
-            truncatedLength: inputText.length,
-          },
-          'Selection assistant truncated the captured text to the configured maximum length.'
-        );
-      }
-
-      const prompts = await buildSelectionAssistantPrompts(config.promptFilePath, inputText);
-      const outputText = await generateSelectionAssistantResponse(config, prompts);
-      const entry = await persistLogEntry(
-        {
-          id: randomUUID(),
-          createdAt: new Date().toISOString(),
-          status: 'success',
-          shortcut: hotkey.shortcut,
-          inputText,
-          outputText,
-          model: config.model,
-          promptFilePath: config.promptFilePath,
-          logFilePath: config.logFilePath,
-        },
-        config.logFilePath,
-        fastify
-      );
-
-      controller.publish(entry);
-      controller.setStatus(createStatus('idle', config, `Ready. Press ${hotkey.shortcut} after selecting text.`));
-    } catch (err) {
-      const entry = await persistLogEntry(
-        {
-          id: randomUUID(),
-          createdAt: new Date().toISOString(),
-          status: 'error',
-          shortcut: hotkey.shortcut,
-          inputText,
-          outputText: '',
-          errorMessage: err instanceof Error ? err.message : 'Selection assistant failed.',
-          model: config.model,
-          promptFilePath: config.promptFilePath,
-          logFilePath: config.logFilePath,
-        },
-        config.logFilePath,
-        fastify
-      );
-
-      controller.publish(entry);
-      controller.setStatus(createStatus('idle', config, `Ready. Press ${hotkey.shortcut} after selecting text.`));
-      fastify.log.error({ err }, 'Selection assistant failed.');
-    } finally {
-      isRunning = false;
-    }
+        void appendSelectionAssistantLog(config.logFilePath, entry).catch((err) => {
+          fastify.log.error({ err, logFilePath: config.logFilePath }, 'Selection assistant could not write the local log entry.');
+        });
+      })
+      .finally(() => {
+        isRunning = false;
+      });
   };
 
-  try {
-    stopListening = registerGlobalKeydownListener(onKeyDown);
-  } catch (err) {
-    controller.setStatus(createStatus('misconfigured', config, 'Selection assistant could not start the global keyboard hook.'));
-    fastify.log.error({ err }, 'Selection assistant could not start the global keyboard hook.');
-    return;
-  }
+  const stopListening = registerGlobalKeydownListener(onKeyDown);
 
   fastify.log.info(
     {
@@ -225,11 +139,6 @@ export default fp(async function selectionAssistantPlugin(fastify: FastifyInstan
   );
 
   fastify.addHook('onClose', async () => {
-    if (!stopListening) {
-      return;
-    }
-
     stopListening();
-    stopListening = null;
   });
 });

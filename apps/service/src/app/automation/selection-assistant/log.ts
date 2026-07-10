@@ -23,19 +23,20 @@ export const appendSelectionAssistantLog = async (
 };
 
 export const readSelectionAssistantLatestLogEntry = async (logFilePath: string): Promise<SelectionAssistantEntry | null> => {
-  try {
-    const fileContent = await fs.readFile(logFilePath, 'utf8');
-    const entries = fileContent
-      .split(/\r?\n/)
-      .map(parseLogLine)
-      .filter((entry): entry is SelectionAssistantEntry => entry !== null);
+  return fs.readFile(logFilePath, 'utf8')
+    .then((fileContent) => {
+      const entries = fileContent
+        .split(/\r?\n/)
+        .map(parseLogLine)
+        .filter((entry): entry is SelectionAssistantEntry => entry !== null);
 
-    return entries.at(-1) ?? null;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return null;
-    }
+      return entries.at(-1) ?? null;
+    })
+    .catch((err) => {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null;
+      }
 
-    throw err;
-  }
+      throw err;
+    });
 };

@@ -14,18 +14,13 @@ Text:
 {summary}`;
 
 const loadPromptTemplate = async (promptFilePath: string): Promise<string> => {
-  try {
-    const promptFileContent = await fs.readFile(promptFilePath, 'utf8');
-    const normalizedPromptTemplate = promptFileContent.trim();
+  return fs.readFile(promptFilePath, 'utf8')
+    .then((promptFileContent) => {
+      const normalizedPromptTemplate = promptFileContent.trim();
 
-    if (!normalizedPromptTemplate) {
-      return defaultPromptTemplate;
-    }
-
-    return normalizedPromptTemplate;
-  } catch {
-    return defaultPromptTemplate;
-  }
+      return normalizedPromptTemplate || defaultPromptTemplate;
+    })
+    .catch(() => defaultPromptTemplate);
 };
 
 const renderPromptTemplate = (promptTemplate: string, selectedText: string): string => {

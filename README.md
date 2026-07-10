@@ -52,7 +52,6 @@ The selection speaker listens for a global shortcut, reads the current Windows s
 
 Configure it in [`.env.example`](./.env.example) through these variables:
 
-- `SELECTION_SPEAKER_ENABLED` to turn the plugin on
 - `SELECTION_SPEAKER_SHORTCUT` to change the global shortcut
 - `SELECTION_SPEAKER_API_KEY`, `SELECTION_SPEAKER_BASE_URL`, and `SELECTION_SPEAKER_MODEL` for the audio-capable LLM endpoint
 - `SELECTION_SPEAKER_VOICE` to choose among the currently supported qwen-omni voices: `Ethan`, `Chelsie`, or `Aiden`
@@ -60,15 +59,15 @@ Configure it in [`.env.example`](./.env.example) through these variables:
 
 ## Selection Assistant
 
-The selection assistant is disabled by default. When enabled, it listens for a global shortcut, reads the current Windows selection, sends it to an OpenAI-compatible `/chat/completions` endpoint, shows the result in the web UI, and appends each result to a local JSONL log.
+The selection assistant starts with the service on Windows, listens for a global shortcut, reads the current selection, sends it through the OpenAI JavaScript SDK to an OpenAI-compatible `/chat/completions` endpoint, shows the latest result in the web UI, and appends each result to a local JSONL log.
 
 Configure it in [`.env.example`](./.env.example) through these variables:
 
-- `SELECTION_ASSISTANT_ENABLED` to turn the plugin on
 - `SELECTION_ASSISTANT_SHORTCUT` to change the global shortcut
 - `SELECTION_ASSISTANT_API_KEY`, `SELECTION_ASSISTANT_BASE_URL`, and `SELECTION_ASSISTANT_MODEL` for the LLM endpoint
-- `SELECTION_ASSISTANT_PROMPT_PATH` to point at a prompt reference file such as [z.md](./z.md)
+- `SELECTION_ASSISTANT_PROMPT_PATH` to override the default prompt file at [apps/service/src/assets/selection-assistant.prompt.md](./apps/service/src/assets/selection-assistant.prompt.md)
 - `SELECTION_ASSISTANT_LOG_PATH` to choose the local JSONL log destination
+- `SELECTION_ASSISTANT_REQUEST_TIMEOUT_MS` to control the upstream request timeout
 
 ## Commands
 

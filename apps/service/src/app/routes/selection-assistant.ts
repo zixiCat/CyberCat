@@ -8,13 +8,8 @@ export default async function (fastify: FastifyInstance) {
       openSseStream(reply);
       writeSseEvent(reply, 'snapshot', fastify.selectionAssistant.getSnapshot());
 
-      const unsubscribe = fastify.selectionAssistant.subscribe((event) => {
-        if (event.type === 'entry') {
-          writeSseEvent(reply, 'entry', { entry: event.entry });
-          return;
-        }
-
-        writeSseEvent(reply, 'status', { status: event.status });
+      const unsubscribe = fastify.selectionAssistant.subscribe((entry) => {
+        writeSseEvent(reply, 'entry', { entry });
       });
 
       reply.raw.on('close', () => {

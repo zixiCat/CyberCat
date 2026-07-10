@@ -6,7 +6,6 @@ import type {
   SelectionAssistantEntry,
   SelectionAssistantFeedState,
   SelectionAssistantSnapshot,
-  SelectionAssistantStatus,
 } from './types';
 
 const parseSseData = <T,>(event: SSEvent): T => JSON.parse(String(event.data)) as T;
@@ -15,7 +14,7 @@ const initialState: SelectionAssistantFeedState = {
   connectionError: '',
   entry: null,
   isConnected: false,
-  status: null,
+  shortcut: '',
 };
 
 export const useSelectionAssistantFeed = () => {
@@ -33,17 +32,7 @@ export const useSelectionAssistantFeed = () => {
         connectionError: '',
         entry: snapshot.entry,
         isConnected: true,
-        status: snapshot.status,
-      });
-    });
-
-    source.addEventListener('status', (event: SSEvent) => {
-      const { status } = parseSseData<{ status: SelectionAssistantStatus }>(event);
-
-      setState({
-        connectionError: '',
-        isConnected: true,
-        status,
+        shortcut: snapshot.shortcut,
       });
     });
 
@@ -79,6 +68,6 @@ export const useSelectionAssistantFeed = () => {
     connectionError: state.connectionError,
     entry: state.entry,
     isConnected: state.isConnected,
-    status: state.status,
+    shortcut: state.shortcut,
   };
 };

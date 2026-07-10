@@ -3,15 +3,6 @@ import { AnimatePresence, motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useSelectionAssistantFeed } from './use-selection-assistant-feed';
-import type { SelectionAssistantRuntimeState } from './types';
-
-const statusTone: Record<SelectionAssistantRuntimeState, string> = {
-  busy: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200',
-  disabled: 'border-slate-200 bg-slate-100 text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
-  idle: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200',
-  misconfigured: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200',
-  unsupported: 'border-slate-200 bg-slate-100 text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
-};
 
 const formatTimestamp = (value: string): string => {
   const date = new Date(value);
@@ -29,7 +20,10 @@ const formatTimestamp = (value: string): string => {
 };
 
 export const SelectionAssistantPanel = () => {
-  const { connectionError, entry, isConnected, status } = useSelectionAssistantFeed();
+  const { connectionError, entry, isConnected, shortcut } = useSelectionAssistantFeed();
+  const helperMessage = shortcut
+    ? `Press ${shortcut} after selecting text anywhere on Windows.`
+    : 'Press the configured shortcut after selecting text anywhere on Windows.';
 
   return (
     <section className="flex min-h-[520px] flex-col rounded-md border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -43,22 +37,15 @@ export const SelectionAssistantPanel = () => {
 
       <div className="border-b border-slate-200 px-5 py-4 dark:border-zinc-800">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span
-            className={`rounded-full border px-3 py-1 font-medium ${
-              status ? statusTone[status.state] : 'border-slate-200 bg-slate-100 text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'
-            }`}
-          >
-            {status?.state ?? 'connecting'}
-          </span>
           <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-            {status?.shortcut ?? 'shortcut unavailable'}
+            {shortcut || 'shortcut unavailable'}
           </span>
           <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
             {isConnected ? 'stream connected' : 'stream reconnecting'}
           </span>
         </div>
         <p className="mt-3 text-sm text-slate-600 dark:text-zinc-300">
-          {connectionError || status?.message || 'Waiting for selection assistant events.'}
+          {connectionError || helperMessage}
         </p>
       </div>
 
@@ -76,12 +63,12 @@ export const SelectionAssistantPanel = () => {
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span
                     className={`rounded-full border px-3 py-1 font-medium ${
-                      entry.status === 'error'
+                      entry.errorMessage
                         ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200'
                         : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200'
                     }`}
                   >
-                    {entry.status}
+                    {entry.errorMessage ? 'error' : 'result'}
                   </span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                     {formatTimestamp(entry.createdAt)}
@@ -98,9 +85,9 @@ export const SelectionAssistantPanel = () => {
                   </p>
                 </div>
 
-                {entry.status === 'error' ? (
+                {entry.errorMessage ? (
                   <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100">
-                    {entry.errorMessage || 'Selection assistant failed without a detailed error message.'}
+                    {entry.errorMessage}
                   </div>
                 ) : (
                   <div className="rounded-md border border-slate-200 p-4 dark:border-zinc-800">
@@ -134,23 +121,9 @@ export const SelectionAssistantPanel = () => {
                   </div>
                 )}
 
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-300">
-                  <p>
-                    {entry.logSaved
-                      ? `Saved to ${entry.logFilePath}`
-                      : `Visible in the web UI, but writing the local log failed: ${entry.logErrorMessage ?? 'unknown error'}`}
-                  </p>
-                </div>
-
-                <div className="grid gap-3 rounded-md border border-slate-200 p-4 text-sm text-slate-600 dark:border-zinc-800 dark:text-zinc-300">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Prompt file</p>
-                    <p className="mt-1 break-all">{entry.promptFilePath}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Log file</p>
-                    <p className="mt-1 break-all">{entry.logFilePath}</p>
-                  </div>
+                <div className="rounded-md border border-slate-200 p-4 text-sm text-slate-600 dark:border-zinc-800 dark:text-zinc-300">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Prompt file</p>
+                  <p className="mt-1 break-all">{entry.promptFilePath}</p>
                 </div>
               </motion.div>
           ) : (
@@ -162,7 +135,7 @@ export const SelectionAssistantPanel = () => {
               transition={{ duration: 0.18, ease: 'easeOut' }}
               className="rounded-md border border-dashed border-slate-200 px-5 py-8 text-sm text-slate-500 dark:border-zinc-700 dark:text-zinc-400"
             >
-              Waiting for the latest selection assistant result. Trigger the shortcut after selecting text anywhere on Windows.
+              Waiting for the latest selection assistant result. {helperMessage}
             </motion.div>
           )}
         </AnimatePresence>
