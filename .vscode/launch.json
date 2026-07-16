@@ -2,28 +2,21 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "type": "editor-browser",
+      "request": "launch",
+      "name": "CyberCat Web",
+      "url": "http://localhost:4200",
+      "webRoot": "${workspaceFolder}/apps/web",
+      "sourceMaps": true
+    },
+    {
+      "name": "CyberCat Service",
       "type": "node",
       "request": "launch",
-      "name": "Debug @cyber-cat/service with Nx",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": [
-        "nx",
-        "serve",
-        "@cyber-cat/service"
-      ],
-      "env": {
-        "NODE_OPTIONS": "--inspect=9229"
-      },
+      "runtimeExecutable": "${env:USERPROFILE}\\scoop\\shims\\fnm.exe",
+      "runtimeArgs": ["exec", "--using=default", "--", "npm.cmd", "run", "start:service"],
       "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
-      "sourceMaps": true,
-      "outFiles": [
-        "${workspaceFolder}/apps/service/dist/**/*.(m|c|)js",
-        "!**/node_modules/**"
-      ]
+      "internalConsoleOptions": "neverOpen"
     }
   ]
 }
