@@ -2,19 +2,19 @@ import { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import type { UiohookKeyboardEvent } from 'uiohook-napi';
 import {
+  createAudioPlayback,
   deleteAudioFile,
   getGlobalSelectedText,
   matchesHotkey,
   parseHotkey,
-  playAudioFile,
   readSelectionSpeakerConfig,
   registerGlobalKeydownListener,
   synthesizeSpeech,
+  splitSpeechText,
   writeAudioToTempFile,
 } from '../automation/selection-speaker';
 
 const trimSelectedText = (value: string, maxInputLength: number): string => {
-  console.log('Trimming selected text:', value);
   const normalizedText = value.trim();
 
   if (normalizedText.length <= maxInputLength) {
@@ -48,7 +48,7 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
     return;
   }
 
-  let isRunning = false;
+  let activeSession: { cancel: () => void } | null = null;
   let stopListening: (() => void) | null = null;
 
   const onKeyDown = async (event: UiohookKeyboardEvent): Promise<void> => {
@@ -56,16 +56,24 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
       return;
     }
 
-    if (isRunning) {
-      fastify.log.warn('Selection speaker ignored a trigger while work was already in progress.');
-      return;
-    }
+    activeSession?.cancel();
 
-    isRunning = true;
-    let audioFilePath = '';
+    const abortController = new AbortController();
+    const playback = createAudioPlayback();
+    const session = {
+      cancel: () => {
+        abortController.abort();
+        playback.stop();
+      },
+    };
+    activeSession = session;
 
     try {
       const selectedText = await getGlobalSelectedText();
+      if (abortController.signal.aborted) {
+        return;
+      }
+
       const textToSpeak = trimSelectedText(selectedText, config.maxInputLength);
 
       if (!textToSpeak) {
@@ -83,18 +91,45 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
         );
       }
 
-      const audioBuffer = await synthesizeSpeech(config, textToSpeak);
-      audioFilePath = writeAudioToTempFile(audioBuffer);
-      await playAudioFile(audioFilePath);
+      const textSegments = splitSpeechText(textToSpeak);
+      let nextSynthesis = synthesizeSpeech(
+        config,
+        textSegments[0],
+        abortController.signal
+      );
 
-    } catch (err) {
-      fastify.log.error({ err }, 'Selection speaker failed.');
-    } finally {
-      if (audioFilePath) {
-        await deleteAudioFile(audioFilePath);
+      for (let index = 0; index < textSegments.length; index += 1) {
+        const audioBuffer = await nextSynthesis;
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        if (index + 1 < textSegments.length) {
+          nextSynthesis = synthesizeSpeech(
+            config,
+            textSegments[index + 1],
+            abortController.signal
+          );
+        }
+
+        const audioFilePath = writeAudioToTempFile(audioBuffer);
+        try {
+          await playback.play(audioFilePath);
+        } finally {
+          await deleteAudioFile(audioFilePath);
+        }
       }
 
-      isRunning = false;
+    } catch (err) {
+      if (!abortController.signal.aborted) {
+        fastify.log.error({ err }, 'Selection speaker failed.');
+      }
+    } finally {
+      playback.stop();
+
+      if (activeSession === session) {
+        activeSession = null;
+      }
     }
   };
 
@@ -115,6 +150,9 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
   );
 
   fastify.addHook('onClose', async () => {
+    activeSession?.cancel();
+    activeSession = null;
+
     if (!stopListening) {
       return;
     }
