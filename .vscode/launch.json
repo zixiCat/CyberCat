@@ -7,7 +7,8 @@
       "name": "CyberCat Web",
       "url": "http://localhost:4200",
       "webRoot": "${workspaceFolder}/apps/web",
-      "sourceMaps": true
+      "sourceMaps": true,
+      "preLaunchTask": "CyberCat Web Server"
     },
     {
       "name": "CyberCat Service",
@@ -17,6 +18,13 @@
       "runtimeArgs": ["exec", "--using=default", "--", "npm.cmd", "run", "start:service"],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "CyberCat Full Stack",
+      "configurations": ["CyberCat Service", "CyberCat Web"],
+      "stopAll": true
     }
   ]
 }

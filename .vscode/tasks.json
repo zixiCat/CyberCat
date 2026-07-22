@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "start:web",
+      "label": "CyberCat Web Server",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "cybercat-web",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": ".*(compiled successfully|webpack compiled|http://localhost:4200).*"
+        }
+      }
+    }
+  ]
+}

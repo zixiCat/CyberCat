@@ -23,6 +23,12 @@ CyberCat is a small Nx workspace with:
 
 Create a local environment file from [`.env.example`](./.env.example) and add your credentials before running the xgd commands.
 
+Start the web app and service together:
+
+```sh
+npm start
+```
+
 Start the service:
 
 ```sh

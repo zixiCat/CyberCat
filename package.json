@@ -4,6 +4,7 @@
   "description": "CyberCat web and service control panel for personal scripts.",
   "license": "MIT",
   "scripts": {
+    "start": "nx run-many --target=serve --projects=@cyber-cat/service,@cyber-cat/web --parallel=2 --outputStyle=stream",
     "start:web": "nx serve web",
     "start:service": "nx serve service"
   },
