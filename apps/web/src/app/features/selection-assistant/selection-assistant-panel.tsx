@@ -1,4 +1,4 @@
-import { Languages } from 'lucide-react';
+import { Languages, LoaderCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -9,7 +9,7 @@ interface SelectionAssistantPanelProps {
 }
 
 export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProps) => {
-  const { entry, shortcut } = useSelectionAssistantFeed(onEntry);
+  const { connectionError, entry, shortcut } = useSelectionAssistantFeed(onEntry);
   const helperMessage = shortcut
     ? `Press ${shortcut} after selecting text anywhere on Windows.`
     : 'Press the configured shortcut after selecting text anywhere on Windows.';
@@ -26,7 +26,18 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
 
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
         <AnimatePresence mode="wait">
-          {entry ? (
+          {connectionError ? (
+            <motion.div
+              key="connection-error"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="rounded-md border border-rose-200 bg-rose-50 p-5 text-sm leading-6 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100"
+            >
+              {connectionError}
+            </motion.div>
+          ) : entry ? (
               <motion.div
                 key={entry.id}
                 initial={{ opacity: 0, y: 8 }}
@@ -35,12 +46,33 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
                 transition={{ duration: 0.18, ease: 'easeOut' }}
                 className="grid gap-5"
               >
-                {entry.errorMessage ? (
+                {entry.status === 'loading' ? (
+                  <div className="flex items-center gap-5 rounded-md border border-sky-200 bg-sky-50 p-5 text-sm text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+                    <motion.span
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, ease: 'linear', repeat: Infinity }}
+                      className="flex shrink-0"
+                    >
+                      <LoaderCircle className="h-5 w-5" aria-hidden="true" />
+                    </motion.span>
+                    Reading the selected text and starting the assistant…
+                  </div>
+                ) : entry.errorMessage ? (
                   <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100">
                     {entry.errorMessage}
                   </div>
                 ) : (
                   <div className="rounded-md border border-slate-200 p-4 dark:border-zinc-800">
+                    {entry.status === 'streaming' ? (
+                      <div className="mb-5 flex items-center gap-2 text-sm text-sky-700 dark:text-sky-300">
+                        <motion.span
+                          animate={{ opacity: [0.35, 1, 0.35] }}
+                          transition={{ duration: 1.2, ease: 'easeInOut', repeat: Infinity }}
+                          className="h-2 w-2 rounded-full bg-current"
+                        />
+                        Generating response…
+                      </div>
+                    ) : null}
                     <div className="selection-assistant-markdown text-sm leading-6 text-slate-700 dark:text-zinc-200">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
@@ -67,6 +99,14 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
                       >
                         {entry.outputText}
                       </ReactMarkdown>
+                      {entry.status === 'streaming' ? (
+                        <motion.span
+                          aria-hidden="true"
+                          animate={{ opacity: [0.2, 1, 0.2] }}
+                          transition={{ duration: 0.8, repeat: Infinity }}
+                          className="ml-1 inline-block h-4 w-0.5 bg-sky-600 align-middle dark:bg-sky-400"
+                        />
+                      ) : null}
                     </div>
                   </div>
                 )}

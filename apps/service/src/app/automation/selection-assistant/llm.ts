@@ -6,15 +6,17 @@ export const generateSelectionAssistantResponse = async (
   prompts: {
     systemPrompt: string;
     userPrompt: string;
-  }
+  },
+  onDelta: (outputText: string) => void
 ): Promise<string> => {
   const client = new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseUrl,
   });
-  const completion = await client.chat.completions.create({
+  const stream = await client.chat.completions.create({
     model: config.model,
     temperature: 0.2,
+    stream: true,
     messages: [
       {
         role: 'system',
@@ -26,5 +28,19 @@ export const generateSelectionAssistantResponse = async (
       },
     ],
   });
-  return completion.choices[0]?.message?.content?.trim() ?? '';
+
+  let outputText = '';
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content ?? '';
+
+    if (!delta) {
+      continue;
+    }
+
+    outputText += delta;
+    onDelta(outputText);
+  }
+
+  return outputText.trim();
 };

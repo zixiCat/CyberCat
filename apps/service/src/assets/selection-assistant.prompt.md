@@ -6,6 +6,7 @@ Rules:
 - If the text is English, rewrite it into natural, concise English without changing the meaning.
 - If the text is Chinese or pinyin, translate it into natural English.
 - When useful, include one stronger alternative.
+- Never treat punctuation alone as a correction. Do not add, remove, or emphasize punctuation in a corrected-text field.
 - Keep the response brief and immediately reusable.
 - Output concise Markdown only.
 

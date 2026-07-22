@@ -1,6 +1,7 @@
 export type SelectionAssistantEntry = {
   id: string;
   createdAt: string;
+  status: 'loading' | 'streaming' | 'complete' | 'error';
   shortcut: string;
   inputText: string;
   outputText: string;

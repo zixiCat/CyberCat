@@ -59,7 +59,7 @@ export const CommandListPanel = ({
         <div className="flex items-center gap-5">
           <SquareTerminal className="h-6 w-6 text-teal-600 dark:text-teal-400" aria-hidden="true" />
           <button
-            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-500 px-4 py-2 text-sm font-semibold text-zinc-950 transition-colors hover:bg-teal-400 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
+            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-400 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
             type="button"
             disabled={!selectedCommandName || isRunning}
             onClick={onRun}

@@ -22,10 +22,12 @@ const createSelectionAssistantEntry = (
   shortcut: string,
   inputText: string,
   outputText: string,
+  status: SelectionAssistantEntry['status'],
   errorMessage?: string
 ): SelectionAssistantEntry => ({
   id: randomUUID(),
   createdAt: new Date().toISOString(),
+  status,
   shortcut,
   inputText,
   outputText,
@@ -34,28 +36,41 @@ const createSelectionAssistantEntry = (
   promptFilePath: config.promptFilePath,
 });
 
-const runSelectionAssistantTask = (
+const runSelectionAssistantTask = async (
   config: ReturnType<typeof readSelectionAssistantConfig>,
   shortcut: string,
-  fastify: FastifyInstance
+  fastify: FastifyInstance,
+  pendingEntry: SelectionAssistantEntry
 ): Promise<SelectionAssistantEntry | null> => {
-  let inputText = '';
+  const inputText = (await getGlobalSelectedText()).trim();
 
-  return getGlobalSelectedText()
-    .then((selectedText) => {
-      inputText = selectedText.trim();
+  if (!inputText) {
+    fastify.log.warn('Selection assistant did not capture any selected text.');
+    return null;
+  }
 
-      if (!inputText) {
-        fastify.log.warn('Selection assistant did not capture any selected text.');
-        return null;
-      }
+  const prompts = buildSelectionAssistantPrompts(config.promptFilePath, inputText);
+  const createUpdatedEntry = (
+    outputText: string,
+    status: SelectionAssistantEntry['status'],
+    errorMessage?: string
+  ): SelectionAssistantEntry => ({
+    ...pendingEntry,
+    inputText,
+    outputText,
+    status,
+    errorMessage,
+  });
+  const outputText = await generateSelectionAssistantResponse(config, prompts, (streamedOutputText) => {
+    fastify.selectionAssistant.publish(createUpdatedEntry(streamedOutputText, 'streaming'));
+  });
 
-      const prompts = buildSelectionAssistantPrompts(config.promptFilePath, inputText);
-
-      return generateSelectionAssistantResponse(config, prompts)
-        .then((outputText) => createSelectionAssistantEntry(config, shortcut, inputText, outputText));
-    })
+  return createUpdatedEntry(outputText, 'complete');
 };
+
+const getErrorMessage = (error: unknown): string => error instanceof Error
+  ? error.message
+  : 'The selection assistant could not generate a response.';
 
 export default fp(async function selectionAssistantPlugin(fastify: FastifyInstance) {
   const config = readSelectionAssistantConfig();
@@ -77,9 +92,17 @@ export default fp(async function selectionAssistantPlugin(fastify: FastifyInstan
     }
 
     isRunning = true;
-    void runSelectionAssistantTask(config, hotkey.shortcut, fastify)
+    const pendingEntry = createSelectionAssistantEntry(config, hotkey.shortcut, '', '', 'loading');
+    controller.publish(pendingEntry);
+
+    void runSelectionAssistantTask(config, hotkey.shortcut, fastify, pendingEntry)
       .then((entry) => {
         if (!entry) {
+          controller.publish({
+            ...pendingEntry,
+            status: 'error',
+            errorMessage: 'No selected text was captured.',
+          });
           return;
         }
 
@@ -87,6 +110,14 @@ export default fp(async function selectionAssistantPlugin(fastify: FastifyInstan
 
         void appendSelectionAssistantOutput(config.logFilePath, entry.outputText).catch((err) => {
           fastify.log.error({ err, logFilePath: config.logFilePath }, 'Selection assistant could not write the local output log.');
+        });
+      })
+      .catch((err: unknown) => {
+        fastify.log.error({ err }, 'Selection assistant could not generate a response.');
+        controller.publish({
+          ...pendingEntry,
+          status: 'error',
+          errorMessage: getErrorMessage(err),
         });
       })
       .finally(() => {
