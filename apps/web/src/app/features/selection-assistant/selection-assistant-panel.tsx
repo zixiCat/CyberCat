@@ -4,6 +4,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useSelectionAssistantFeed } from './use-selection-assistant-feed';
 
+interface SelectionAssistantPanelProps {
+  onEntry: () => void;
+}
+
 const formatTimestamp = (value: string): string => {
   const date = new Date(value);
 
@@ -19,8 +23,8 @@ const formatTimestamp = (value: string): string => {
   });
 };
 
-export const SelectionAssistantPanel = () => {
-  const { connectionError, entry, isConnected, shortcut } = useSelectionAssistantFeed();
+export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProps) => {
+  const { connectionError, entry, isConnected, shortcut } = useSelectionAssistantFeed(onEntry);
   const helperMessage = shortcut
     ? `Press ${shortcut} after selecting text anywhere on Windows.`
     : 'Press the configured shortcut after selecting text anywhere on Windows.';

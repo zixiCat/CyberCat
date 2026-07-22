@@ -30,9 +30,12 @@ const initialState: SelectionAssistantFeedState = {
   shortcut: '',
 };
 
-export const useSelectionAssistantFeed = () => {
+export const useSelectionAssistantFeed = (onEntry: () => void) => {
   const sourceRef = useRef<SSE | null>(null);
+  const onEntryRef = useRef(onEntry);
   const [state, setState] = useSetState<SelectionAssistantFeedState>(initialState);
+
+  onEntryRef.current = onEntry;
 
   useEffect(() => {
     const source = new SSE(`${apiBaseUrl}/selection-assistant/stream`);
@@ -57,6 +60,7 @@ export const useSelectionAssistantFeed = () => {
         entry,
         isConnected: true,
       });
+      onEntryRef.current();
     });
 
     source.addEventListener('error', (event: SSEvent) => {

@@ -16,6 +16,10 @@ export const CommandTerminalPanel = ({ terminalLines }: CommandTerminalPanelProp
 
   return (
     <section className="rounded-md border border-zinc-800 bg-zinc-950 text-zinc-50 shadow-sm">
+      <div className="border-b border-zinc-800 p-5">
+        <h2 className="text-xl font-semibold leading-tight">Execution Log</h2>
+        <p className="mt-1 text-sm text-zinc-400">Live output from the selected command</p>
+      </div>
       <div ref={outputRef} className="max-h-[640px] overflow-auto p-5 font-mono text-sm leading-6">
         {terminalLines.map((line) => (
           <pre
