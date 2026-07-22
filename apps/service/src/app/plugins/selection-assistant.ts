@@ -3,12 +3,11 @@ import { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import type { UiohookKeyboardEvent } from 'uiohook-napi';
 import {
-  appendSelectionAssistantLog,
+  appendSelectionAssistantOutput,
   buildSelectionAssistantPrompts,
   createSelectionAssistantController,
   generateSelectionAssistantResponse,
   readSelectionAssistantConfig,
-  readSelectionAssistantLatestLogEntry,
   SelectionAssistantEntry,
 } from '../automation/selection-assistant';
 import {
@@ -61,8 +60,7 @@ const runSelectionAssistantTask = (
 export default fp(async function selectionAssistantPlugin(fastify: FastifyInstance) {
   const config = readSelectionAssistantConfig();
   const hotkey = parseHotkey(config.shortcut);
-  const initialEntry = await readSelectionAssistantLatestLogEntry(config.logFilePath);
-  const controller = createSelectionAssistantController(hotkey.shortcut, initialEntry);
+  const controller = createSelectionAssistantController(hotkey.shortcut, null);
 
   fastify.decorate('selectionAssistant', controller);
 
@@ -87,8 +85,8 @@ export default fp(async function selectionAssistantPlugin(fastify: FastifyInstan
 
         controller.publish(entry);
 
-        void appendSelectionAssistantLog(config.logFilePath, entry).catch((err) => {
-          fastify.log.error({ err, logFilePath: config.logFilePath }, 'Selection assistant could not write the local log entry.');
+        void appendSelectionAssistantOutput(config.logFilePath, entry.outputText).catch((err) => {
+          fastify.log.error({ err, logFilePath: config.logFilePath }, 'Selection assistant could not write the local output log.');
         });
       })
       .finally(() => {

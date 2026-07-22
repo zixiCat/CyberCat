@@ -9,7 +9,7 @@ CyberCat is a small Nx workspace with:
 - a Fastify service that discovers runnable script commands and streams output over Server-Sent Events
 - a React web app that lets you filter, run, and watch those commands in a terminal-style UI
 - a global shortcut selection speaker that captures selected text and asks an OpenAI-compatible qwen-omni model to speak it
-- a global shortcut selection assistant that can capture selected text, call an OpenAI-compatible chat endpoint, stream the result into the web UI, and append a local JSONL log
+- a global shortcut selection assistant that can capture selected text, call an OpenAI-compatible chat endpoint, stream the result into the web UI, and append an output-only Markdown log
 - colocated command entrypoints under [commands](./commands) and a local `.env` file in the `CyberCat` root
 
 ## Structure
@@ -61,14 +61,14 @@ Configure it in [`.env.example`](./.env.example) through these variables:
 
 ## Selection Assistant
 
-The selection assistant starts with the service on Windows, listens for a global shortcut, reads the current selection, sends it through the OpenAI JavaScript SDK to an OpenAI-compatible `/chat/completions` endpoint, shows the latest result in the web UI, and appends each result to a local JSONL log.
+The selection assistant starts with the service on Windows, listens for a global shortcut, reads the current selection, sends it through the OpenAI JavaScript SDK to an OpenAI-compatible `/chat/completions` endpoint, shows the latest result in the web UI, and appends each output to a local Markdown log.
 
 Configure it in [`.env.example`](./.env.example) through these variables:
 
 - `SELECTION_ASSISTANT_SHORTCUT` to change the global shortcut
 - `SELECTION_ASSISTANT_API_KEY`, `SELECTION_ASSISTANT_BASE_URL`, and `SELECTION_ASSISTANT_MODEL` for the LLM endpoint
 - `SELECTION_ASSISTANT_PROMPT_PATH` to override the default prompt file at [apps/service/src/assets/selection-assistant.prompt.md](./apps/service/src/assets/selection-assistant.prompt.md)
-- `SELECTION_ASSISTANT_LOG_PATH` to choose the local JSONL log destination
+- `SELECTION_ASSISTANT_LOG_PATH` to choose the output-only Markdown log destination
 
 ## Commands
 

@@ -10,7 +10,6 @@ export const CommandConsole = () => {
     filteredCommands,
     isLoadingCommands,
     isRunning,
-    selectedCommand,
     selectedCommandName,
     terminalLines,
     runCommand,
@@ -24,17 +23,14 @@ export const CommandConsole = () => {
         filter={filter}
         filterInputRef={filterInputRef}
         isLoadingCommands={isLoadingCommands}
+        isRunning={isRunning}
         commands={filteredCommands}
         selectedCommandName={selectedCommandName}
         onFilterChange={setFilter}
+        onRun={() => runCommand()}
         onSelectCommand={selectCommand}
       />
-      <CommandTerminalPanel
-        isRunning={isRunning}
-        selectedCommandName={selectedCommand?.name}
-        terminalLines={terminalLines}
-        onRun={() => runCommand()}
-      />
+      <CommandTerminalPanel terminalLines={terminalLines} />
       <div className="lg:col-span-2 xl:col-span-1">
         <SelectionAssistantPanel />
       </div>

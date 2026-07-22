@@ -29,5 +29,5 @@ export const readSelectionAssistantConfig = (env: NodeJS.ProcessEnv = process.en
   baseUrl: normalizeBaseUrl(env.SELECTION_ASSISTANT_BASE_URL?.trim() || ''),
   model: env.SELECTION_ASSISTANT_MODEL?.trim() || 'gpt-4.1-mini',
   promptFilePath: resolvePromptFilePath(env.SELECTION_ASSISTANT_PROMPT_PATH),
-  logFilePath: resolvePath(env.SELECTION_ASSISTANT_LOG_PATH?.trim() || 'tmp/selection-assistant-log.jsonl'),
+  logFilePath: resolvePath(env.SELECTION_ASSISTANT_LOG_PATH?.trim() || 'tmp/selection-assistant-log.md'),
 });

@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Search, SquareTerminal } from 'lucide-react';
+import { Play, Search, SquareTerminal } from 'lucide-react';
 import type { CommandDefinition } from './types';
 
 interface CommandListPanelProps {
   filter: string;
   filterInputRef: (element: HTMLInputElement | null) => void;
   isLoadingCommands: boolean;
+  isRunning: boolean;
   commands: CommandDefinition[];
   selectedCommandName: string;
   onFilterChange: (value: string) => void;
+  onRun: () => void;
   onSelectCommand: (name: string) => void;
 }
 
@@ -16,9 +18,11 @@ export const CommandListPanel = ({
   filter,
   filterInputRef,
   isLoadingCommands,
+  isRunning,
   commands,
   selectedCommandName,
   onFilterChange,
+  onRun,
   onSelectCommand,
 }: CommandListPanelProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,7 +56,18 @@ export const CommandListPanel = ({
           <h1 className="text-xl font-semibold leading-tight">CyberCat Commands</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">xgd and zixiCat</p>
         </div>
-        <SquareTerminal className="h-6 w-6 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+        <div className="flex items-center gap-5">
+          <SquareTerminal className="h-6 w-6 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+          <button
+            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-500 px-4 py-2 text-sm font-semibold text-zinc-950 transition-colors hover:bg-teal-400 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
+            type="button"
+            disabled={!selectedCommandName || isRunning}
+            onClick={onRun}
+          >
+            <Play className="h-4 w-4" aria-hidden="true" />
+            {isRunning ? 'Running' : 'Run'}
+          </button>
+        </div>
       </div>
 
       <label className="flex items-center gap-3 border-b border-slate-200 px-5 py-4 dark:border-zinc-800">
