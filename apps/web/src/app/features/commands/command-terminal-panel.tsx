@@ -20,7 +20,7 @@ export const CommandTerminalPanel = ({ terminalLines }: CommandTerminalPanelProp
         <h2 className="text-xl font-semibold leading-tight">Execution Log</h2>
         <p className="mt-1 text-sm text-zinc-400">Live output from the selected command</p>
       </div>
-      <div ref={outputRef} className="max-h-[640px] overflow-auto p-5 font-mono text-sm leading-6">
+      <div ref={outputRef} className="h-[640px] overflow-auto p-5 font-mono text-sm leading-6">
         {terminalLines.map((line) => (
           <pre
             className={`whitespace-pre-wrap break-words ${

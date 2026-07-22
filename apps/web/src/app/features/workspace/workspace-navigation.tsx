@@ -45,7 +45,7 @@ export const WorkspaceNavigation = () => (
         direction="horizontal"
         items={navigationItems}
         replace
-        targetOffset={80}
+        offsetTop={52}
         className="min-w-max"
       />
     </div>
