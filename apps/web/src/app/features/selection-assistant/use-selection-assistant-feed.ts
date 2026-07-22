@@ -10,6 +10,19 @@ import type {
 
 const parseSseData = <T,>(event: SSEvent): T => JSON.parse(String(event.data)) as T;
 
+const parseSseErrorMessage = (event: SSEvent, fallbackMessage: string): string => {
+  if (!event.data) {
+    return fallbackMessage;
+  }
+
+  try {
+    const payload = JSON.parse(String(event.data)) as { message?: unknown };
+    return typeof payload.message === 'string' && payload.message ? payload.message : fallbackMessage;
+  } catch {
+    return fallbackMessage;
+  }
+};
+
 const initialState: SelectionAssistantFeedState = {
   connectionError: '',
   entry: null,
@@ -48,7 +61,7 @@ export const useSelectionAssistantFeed = () => {
 
     source.addEventListener('error', (event: SSEvent) => {
       const fallbackMessage = 'Unable to connect to the selection assistant stream.';
-      const message = event.data ? parseSseData<{ message: string }>(event).message : fallbackMessage;
+      const message = parseSseErrorMessage(event, fallbackMessage);
 
       setState({
         connectionError: message || fallbackMessage,

@@ -8,6 +8,19 @@ import type { CommandConsoleState, CommandDefinition, TerminalLine } from './typ
 
 const parseSseData = <T,>(event: SSEvent): T => JSON.parse(String(event.data)) as T;
 
+const parseSseErrorMessage = (event: SSEvent, fallbackMessage: string): string => {
+  if (!event.data) {
+    return fallbackMessage;
+  }
+
+  try {
+    const payload = JSON.parse(String(event.data)) as { message?: unknown };
+    return typeof payload.message === 'string' && payload.message ? payload.message : fallbackMessage;
+  } catch {
+    return fallbackMessage;
+  }
+};
+
 const initialState: CommandConsoleState = {
   commands: [],
   filter: '',
@@ -72,7 +85,7 @@ export const useCommandConsole = (): UseCommandConsoleResult => {
 
     commandSource.addEventListener('error', (event: SSEvent) => {
       const fallbackMessage = 'Unable to load commands.';
-      const message = event.data ? parseSseData<{ message: string }>(event).message : fallbackMessage;
+      const message = parseSseErrorMessage(event, fallbackMessage);
       setState({ isLoadingCommands: false });
       appendLine('stderr', message);
     });
@@ -164,7 +177,7 @@ export const useCommandConsole = (): UseCommandConsoleResult => {
 
       runSource.addEventListener('error', (event: SSEvent) => {
         const fallbackMessage = 'Command failed.';
-        const message = event.data ? parseSseData<{ message: string }>(event).message : fallbackMessage;
+        const message = parseSseErrorMessage(event, fallbackMessage);
         appendLine('stderr', message);
         setState({ isRunning: false });
       });
