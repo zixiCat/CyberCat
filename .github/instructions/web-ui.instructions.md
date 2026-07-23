@@ -18,8 +18,9 @@ applyTo: "apps/web/**"
 ## 2. UI Component Strategy (Ant Design 6)
 
 - **Hybrid Styling:**
-  - **Ant Design 6:** Mandatory for complex components: `Table`, `Modal`, `Form`, `DatePicker`, `Select`. Don't use any the following components: `Col`, `Row`, `Card`, `Badge`. For simple components, prefer Tailwind v4 CSS, if you see the above components in existing files, please replace them with Tailwind v4 CSS.
-  - **Tailwind v4 CSS:** Use exclusively for layout (Flex/Grid), spacing, and micro-components.
+  - **Ant Design 6 by Default:** Use an Ant Design component whenever an appropriate component exists, including simple controls such as `Button`, `Input`, `Checkbox`, `Radio`, `Switch`, `Tooltip`, and `Dropdown`. Ant Design is mandatory for complex components such as `Table`, `Modal`, `Form`, `DatePicker`, and `Select`.
+  - **Disallowed Ant Design Components:** Do not use `Col`, `Row`, `Card`. Build those specific layout or presentation patterns with Tailwind instead.
+  - **Tailwind v4 CSS:** Use Tailwind for layout (Flex/Grid), spacing, responsive behavior, and small custom presentation elements that Ant Design does not support. Do not recreate an existing Ant Design control with a native element and Tailwind classes.
   - **Ant Design Style Overrides:** When adjusting styles on Ant Design components, first prefer Tailwind utility strings through `className`. If a component exposes `classNames`, check the supported slot keys and use Tailwind utilities there for targeted overrides, for example:
 
     ```tsx
@@ -32,7 +33,7 @@ applyTo: "apps/web/**"
 
 - **Icons:** Use `lucide-react` for all UI icons.
 - **Typography:** Minimum font size is **14px** for readability.
-- **Theming:** Default to Light Mode. Apply `dark:` utility classes for Tailwind dark mode support (e.g., `dark:text-white`).
+- **Theming:** Wrap the application with Ant Design's `ConfigProvider` and customize global design through its `theme` tokens. The primary brand color is `#b26ce8`; define it as the global `colorPrimary` seed token and let Ant Design derive component states from it. Do not override primary Ant Design controls with unrelated hard-coded accent colors. Default to Light Mode. Apply `dark:` utility classes for Tailwind dark mode support (e.g., `dark:text-white`).
 - **Animations:** Use `motion/react` for all UI transitions; avoid raw CSS animations.
 
 ## 4. Coding Patterns
