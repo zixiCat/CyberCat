@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { Button, Input } from 'antd';
+import type { InputRef } from 'antd';
+import clsx from 'clsx';
 import { Play, Search, SquareTerminal } from 'lucide-react';
 import type { CommandDefinition } from './types';
 
@@ -25,12 +28,12 @@ export const CommandListPanel = ({
   onRun,
   onSelectCommand,
 }: CommandListPanelProps) => {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<InputRef>(null);
 
   const setInputRef = useCallback(
-    (node: HTMLInputElement | null) => {
+    (node: InputRef | null) => {
       inputRef.current = node;
-      filterInputRef(node);
+      filterInputRef(node?.input ?? null);
     },
     [filterInputRef]
   );
@@ -50,61 +53,61 @@ export const CommandListPanel = ({
   }, []);
 
   return (
-    <section className="flex min-h-0 flex-col rounded-md border border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex items-center justify-between border-b border-slate-200 p-5 dark:border-zinc-800">
+    <section className="panel command-list-panel">
+      <header className="panel-header">
         <div>
-          <h1 className="text-xl font-semibold leading-tight">CyberCat Commands</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">xgd and zixiCat</p>
+          <h1 className="panel-title">CyberCat Commands</h1>
+          <p className="panel-description">xgd and zixiCat</p>
         </div>
-        <div className="flex items-center gap-5">
-          <SquareTerminal className="h-6 w-6 text-teal-600 dark:text-teal-400" aria-hidden="true" />
-          <button
-            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-400 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
-            type="button"
+        <div className="panel-actions">
+          <SquareTerminal className="panel-icon" aria-hidden="true" />
+          <Button
+            type="primary"
+            size="large"
+            icon={<Play aria-hidden="true" />}
+            loading={isRunning}
             disabled={!selectedCommandName || isRunning}
             onClick={onRun}
           >
-            <Play className="h-4 w-4" aria-hidden="true" />
             {isRunning ? 'Running' : 'Run'}
-          </button>
+          </Button>
         </div>
-      </div>
+      </header>
 
-      <label className="flex items-center gap-3 border-b border-slate-200 px-5 py-4 dark:border-zinc-800">
-        <Search className="h-5 w-5 text-slate-400" aria-hidden="true" />
-        <input
+      <div className="command-filter">
+        <Input
           ref={setInputRef}
-          className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-slate-400 dark:placeholder:text-zinc-500"
+          prefix={<Search aria-hidden="true" />}
           placeholder="Filter commands"
           value={filter}
+          allowClear
+          size="large"
+          variant="borderless"
           onChange={(event) => onFilterChange(event.target.value)}
         />
-      </label>
+      </div>
 
-      <div className="min-h-[280px] flex-1 overflow-y-auto p-3">
+      <div className="command-list-scroll">
         {isLoadingCommands ? (
-          <div className="px-2 py-3 text-sm text-slate-500 dark:text-zinc-400">Loading commands...</div>
+          <div className="panel-muted">Loading commands...</div>
         ) : (
-          <div className="grid gap-2">
+          <div className="command-list">
             {commands.map((command) => {
               const isSelected = command.name === selectedCommandName;
 
               return (
-                <button
-                  className={`rounded-md border px-3 py-3 text-left transition-colors ${
-                    isSelected
-                      ? 'border-teal-500 bg-teal-50 text-teal-950 dark:border-teal-400 dark:bg-teal-950/40 dark:text-teal-50'
-                      : 'border-transparent hover:border-slate-200 hover:bg-slate-50 dark:hover:border-zinc-700 dark:hover:bg-zinc-800'
-                  }`}
+                <Button
+                  className={clsx('command-option', isSelected && 'command-option-selected')}
                   key={command.name}
-                  type="button"
+                  type={isSelected ? 'primary' : 'text'}
+                  block
                   onClick={() => onSelectCommand(command.name)}
                 >
-                  <span className="block text-sm font-semibold leading-5">{command.name}</span>
-                  <span className="mt-1 block break-words font-mono text-sm text-slate-500 dark:text-zinc-400">
+                  <span className="command-name">{command.name}</span>
+                  <span className="command-value">
                     {command.command}
                   </span>
-                </button>
+                </Button>
               );
             })}
           </div>

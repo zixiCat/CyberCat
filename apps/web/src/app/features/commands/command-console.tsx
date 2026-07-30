@@ -53,8 +53,8 @@ export const CommandConsole = () => {
   return (
     <>
       <WorkspaceNavigation />
-      <main className="mx-auto grid min-h-screen w-full max-w-[1600px] gap-5 p-5 pb-[200px]">
-        <div id={COMMAND_LIBRARY_ANCHOR} className="scroll-mt-20">
+      <main className="workspace-content">
+        <div id={COMMAND_LIBRARY_ANCHOR} className="workspace-section">
           <CommandListPanel
             filter={filter}
             filterInputRef={filterInputRef}
@@ -67,10 +67,10 @@ export const CommandConsole = () => {
             onSelectCommand={selectCommand}
           />
         </div>
-        <div id="execution-log" className="scroll-mt-20">
+        <div id="execution-log" className="workspace-section">
           <CommandTerminalPanel terminalLines={terminalLines} />
         </div>
-        <div id={SELECTION_ASSISTANT_ANCHOR} className="scroll-mt-20">
+        <div id={SELECTION_ASSISTANT_ANCHOR} className="workspace-section">
           <SelectionAssistantPanel onEntry={showSelectionAssistant} />
         </div>
       </main>

@@ -1,3 +1,4 @@
+import { Alert, Spin } from 'antd';
 import { Languages, LoaderCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -15,16 +16,16 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
     : 'Press the configured shortcut after selecting text anywhere on Windows.';
 
   return (
-    <section className="flex min-h-[520px] flex-col rounded-md border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex items-center justify-between border-b border-slate-200 p-5 dark:border-zinc-800">
+    <section className="panel assistant-panel">
+      <header className="panel-header">
         <div>
-          <h2 className="text-xl font-semibold leading-tight">Selection Assistant</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">Single-result translation and rewrite helper</p>
+          <h2 className="panel-title">Selection Assistant</h2>
+          <p className="panel-description">Single-result translation and rewrite helper</p>
         </div>
-        <Languages className="h-6 w-6 text-sky-600 dark:text-sky-400" aria-hidden="true" />
-      </div>
+        <Languages className="panel-icon" aria-hidden="true" />
+      </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
+      <div className="assistant-content">
         <AnimatePresence mode="wait">
           {connectionError ? (
             <motion.div
@@ -33,9 +34,8 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="rounded-md border border-rose-200 bg-rose-50 p-5 text-sm leading-6 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100"
             >
-              {connectionError}
+              <Alert type="error" showIcon message={connectionError} />
             </motion.div>
           ) : entry ? (
               <motion.div
@@ -44,36 +44,28 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.18, ease: 'easeOut' }}
-                className="grid gap-5"
+                className="assistant-entry"
               >
                 {entry.status === 'loading' ? (
-                  <div className="flex items-center gap-5 rounded-md border border-sky-200 bg-sky-50 p-5 text-sm text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
-                    <motion.span
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, ease: 'linear', repeat: Infinity }}
-                      className="flex shrink-0"
-                    >
-                      <LoaderCircle className="h-5 w-5" aria-hidden="true" />
-                    </motion.span>
+                  <div className="assistant-loading">
+                    <Spin indicator={<LoaderCircle aria-hidden="true" />} />
                     Reading the selected text and starting the assistant…
                   </div>
                 ) : entry.errorMessage ? (
-                  <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100">
-                    {entry.errorMessage}
-                  </div>
+                  <Alert type="error" showIcon message={entry.errorMessage} />
                 ) : (
-                  <div className="rounded-md border border-slate-200 p-4 dark:border-zinc-800">
+                  <div className="assistant-result">
                     {entry.status === 'streaming' ? (
-                      <div className="mb-5 flex items-center gap-2 text-sm text-sky-700 dark:text-sky-300">
+                      <div className="assistant-streaming">
                         <motion.span
                           animate={{ opacity: [0.35, 1, 0.35] }}
                           transition={{ duration: 1.2, ease: 'easeInOut', repeat: Infinity }}
-                          className="h-2 w-2 rounded-full bg-current"
+                          className="streaming-dot"
                         />
                         Generating response…
                       </div>
                     ) : null}
-                    <div className="selection-assistant-markdown text-sm leading-6 text-slate-700 dark:text-zinc-200">
+                    <div className="selection-assistant-markdown">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
@@ -85,16 +77,16 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
                           ol: ({ children }) => <ol className="mt-3 list-decimal space-y-1 pl-5 first:mt-0">{children}</ol>,
                           li: ({ children }) => <li>{children}</li>,
                           code: ({ children }) => (
-                            <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[13px] text-slate-800 dark:bg-zinc-800 dark:text-zinc-100">
+                            <code className="markdown-code">
                               {children}
                             </code>
                           ),
                           pre: ({ children }) => (
-                            <pre className="mt-3 overflow-x-auto rounded-md bg-zinc-950 p-4 font-mono text-[13px] text-zinc-50 first:mt-0">
+                            <pre className="markdown-code-block">
                               {children}
                             </pre>
                           ),
-                          strong: ({ children }) => <strong className="font-semibold text-slate-950 dark:text-zinc-50">{children}</strong>,
+                          strong: ({ children }) => <strong className="markdown-strong">{children}</strong>,
                         }}
                       >
                         {entry.outputText}
@@ -104,7 +96,7 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
                           aria-hidden="true"
                           animate={{ opacity: [0.2, 1, 0.2] }}
                           transition={{ duration: 0.8, repeat: Infinity }}
-                          className="ml-1 inline-block h-4 w-0.5 bg-sky-600 align-middle dark:bg-sky-400"
+                          className="streaming-caret"
                         />
                       ) : null}
                     </div>
@@ -118,7 +110,7 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="rounded-md border border-dashed border-slate-200 px-5 py-8 text-sm text-slate-500 dark:border-zinc-700 dark:text-zinc-400"
+              className="assistant-empty"
             >
               Waiting for the latest selection assistant result. {helperMessage}
             </motion.div>

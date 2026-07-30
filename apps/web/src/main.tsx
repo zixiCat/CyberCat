@@ -10,6 +10,7 @@ root.render(
   <StrictMode>
     <ConfigProvider
       theme={{
+        cssVar: {},
         token: {
           colorPrimary: '#b26ce8',
         },
