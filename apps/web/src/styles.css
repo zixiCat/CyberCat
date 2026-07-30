@@ -78,9 +78,38 @@
 
   .panel-title {
     margin: 0;
+    color: var(--app-color-primary-text);
     font-size: 20px;
     font-weight: 600;
     line-height: 1.25;
+  }
+
+  .brand-title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 12px;
+  }
+
+  .brand-title-mascot {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    object-fit: contain;
+  }
+
+  .brand-title-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .brand-title-wordmark {
+    width: auto;
+    height: 18px;
+    object-fit: contain;
   }
 
   .panel-description {
@@ -192,6 +221,10 @@
     border-bottom: 1px solid #27272a;
   }
 
+  .terminal-header .panel-title {
+    color: #f4f4f5;
+  }
+
   .terminal-description {
     margin: 4px 0 0;
     color: #a1a1aa;
@@ -223,6 +256,12 @@
 
   .terminal-line-stdout {
     color: #d1fae5;
+  }
+
+  @media (max-width: 520px) {
+    .brand-title-wordmark {
+      display: none;
+    }
   }
 
   .assistant-panel {

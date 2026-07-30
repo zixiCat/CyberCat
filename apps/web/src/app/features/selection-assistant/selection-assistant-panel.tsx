@@ -3,6 +3,7 @@ import { Languages, LoaderCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { BrandTitle } from '../../components/brand-title';
 import { useSelectionAssistantFeed } from './use-selection-assistant-feed';
 
 interface SelectionAssistantPanelProps {
@@ -19,8 +20,7 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
     <section className="panel assistant-panel">
       <header className="panel-header">
         <div>
-          <h2 className="panel-title">Selection Assistant</h2>
-          <p className="panel-description">Single-result translation and rewrite helper</p>
+          <BrandTitle title="Selection Assistant" />
         </div>
         <Languages className="panel-icon" aria-hidden="true" />
       </header>

@@ -3,6 +3,7 @@ import { Button, Input } from 'antd';
 import type { InputRef } from 'antd';
 import clsx from 'clsx';
 import { Play, Search, SquareTerminal } from 'lucide-react';
+import { BrandTitle } from '../../components/brand-title';
 import type { CommandDefinition } from './types';
 
 interface CommandListPanelProps {
@@ -55,10 +56,7 @@ export const CommandListPanel = ({
   return (
     <section className="panel command-list-panel">
       <header className="panel-header">
-        <div>
-          <h1 className="panel-title">CyberCat Commands</h1>
-          <p className="panel-description">xgd and zixiCat</p>
-        </div>
+        <BrandTitle title="Commands" />
         <div className="panel-actions">
           <SquareTerminal className="panel-icon" aria-hidden="true" />
           <Button
