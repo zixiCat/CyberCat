@@ -43,7 +43,7 @@ module.exports = {
     clean: true,
   },
   devServer: {
-    port: 4200,
+    port: 2222,
     proxy: [
       {
         context: ['/api'],

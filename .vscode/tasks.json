@@ -14,7 +14,7 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".*",
-          "endsPattern": ".*(compiled successfully|webpack compiled|http://localhost:4200).*"
+          "endsPattern": ".*(compiled successfully|webpack compiled|http://localhost:2222).*"
         }
       }
     }
