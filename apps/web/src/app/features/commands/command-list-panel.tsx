@@ -14,7 +14,7 @@ interface CommandListPanelProps {
   commands: CommandDefinition[];
   selectedCommandName: string;
   onFilterChange: (value: string) => void;
-  onRun: () => void;
+  onRun: (command?: CommandDefinition) => void;
   onSelectCommand: (name: string) => void;
 }
 
@@ -65,7 +65,7 @@ export const CommandListPanel = ({
             icon={<Play aria-hidden="true" />}
             loading={isRunning}
             disabled={!selectedCommandName || isRunning}
-            onClick={onRun}
+            onClick={() => onRun()}
           >
             {isRunning ? 'Running' : 'Run'}
           </Button>
@@ -100,6 +100,7 @@ export const CommandListPanel = ({
                   type={isSelected ? 'primary' : 'text'}
                   block
                   onClick={() => onSelectCommand(command.name)}
+                  onDoubleClick={() => onRun(command)}
                 >
                   <span className="command-name">{command.name}</span>
                   <span className="command-value">

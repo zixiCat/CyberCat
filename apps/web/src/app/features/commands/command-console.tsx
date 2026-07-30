@@ -63,7 +63,7 @@ export const CommandConsole = () => {
             commands={filteredCommands}
             selectedCommandName={selectedCommandName}
             onFilterChange={setFilter}
-            onRun={() => runCommand()}
+            onRun={runCommand}
             onSelectCommand={selectCommand}
           />
         </div>
