@@ -6,15 +6,21 @@ const buildSelectionScript = (): string => `
     $prev = [System.Windows.Forms.Clipboard]::GetDataObject()
     $mark = "__MARKER__"
     [System.Windows.Forms.Clipboard]::SetText($mark)
-    
-    # Small delay to allow any physically pressed modifier keys (from the hotkey) to be released
-    # or to not interfere with the sent keystroke.
-    Start-Sleep -Milliseconds 100
+
+    # Sending Ctrl+C while a shortcut modifier is still down can produce a different chord.
+    for ($i = 0; $i -lt 20; $i++) {
+        if ([System.Windows.Forms.Control]::ModifierKeys -eq [System.Windows.Forms.Keys]::None) {
+            break
+        }
+
+        Start-Sleep -Milliseconds 25
+    }
+
     [System.Windows.Forms.SendKeys]::SendWait('^c')
-    
+
     $text = $null
-    # Retry waiting for the clipboard to update for up to 500ms
-    for ($i = 0; $i -lt 10; $i++) {
+    # Some applications update the clipboard asynchronously.
+    for ($i = 0; $i -lt 20; $i++) {
         Start-Sleep -Milliseconds 50
         if ([System.Windows.Forms.Clipboard]::ContainsText()) {
             $current = [System.Windows.Forms.Clipboard]::GetText()
@@ -44,8 +50,6 @@ const buildSelectionScript = (): string => `
 
 export const getGlobalSelectedText = async (): Promise<string> => {
   const selectedText = await runPowerShell(buildSelectionScript());
-
-  console.log('Selected text:', selectedText);
 
   return selectedText.trim();
 };
