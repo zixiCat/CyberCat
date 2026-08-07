@@ -3,15 +3,12 @@ import fp from 'fastify-plugin';
 import type { UiohookKeyboardEvent } from 'uiohook-napi';
 import {
   createAudioPlayback,
-  deleteAudioFile,
   getGlobalSelectedText,
   matchesHotkey,
   parseHotkey,
   readSelectionSpeakerConfig,
   registerGlobalKeydownListener,
   synthesizeSpeech,
-  splitSpeechText,
-  writeAudioToTempFile,
 } from '../automation/selection-speaker';
 
 const trimSelectedText = (value: string, maxInputLength: number): string => {
@@ -91,35 +88,19 @@ export default fp(async function selectionSpeakerPlugin(fastify: FastifyInstance
         );
       }
 
-      const textSegments = splitSpeechText(textToSpeak);
-      let nextSynthesis = synthesizeSpeech(
+      const requestStartedAt = performance.now();
+      const audioStream = await synthesizeSpeech(
         config,
-        textSegments[0],
-        abortController.signal
-      );
-
-      for (let index = 0; index < textSegments.length; index += 1) {
-        const audioBuffer = await nextSynthesis;
-        if (abortController.signal.aborted) {
-          return;
-        }
-
-        if (index + 1 < textSegments.length) {
-          nextSynthesis = synthesizeSpeech(
-            config,
-            textSegments[index + 1],
-            abortController.signal
+        textToSpeak,
+        abortController.signal,
+        () => {
+          fastify.log.info(
+            { ttfpMs: Number((performance.now() - requestStartedAt).toFixed(1)) },
+            'Selection speaker received first audio.'
           );
         }
-
-        const audioFilePath = writeAudioToTempFile(audioBuffer);
-        try {
-          await playback.play(audioFilePath);
-        } finally {
-          await deleteAudioFile(audioFilePath);
-        }
-      }
-
+      );
+      await playback.play(audioStream);
     } catch (err) {
       if (!abortController.signal.aborted) {
         fastify.log.error({ err }, 'Selection speaker failed.');

@@ -19,6 +19,7 @@
     "dayjs": "^1.11.19",
     "fastify": "~5.2.1",
     "fastify-plugin": "~5.0.1",
+    "ffplay-static": "^3.2.2",
     "fs-extra": "^11.3.6",
     "lucide-react": "^0.562.0",
     "match-sorter": "^8.3.0",
