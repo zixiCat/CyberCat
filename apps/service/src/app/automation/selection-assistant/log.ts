@@ -2,19 +2,41 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 
 export const appendSelectionAssistantOutput = async (
-  logFilePath: string,
+  logFilePaths: string[],
   outputText: string
 ): Promise<void> => {
-  await fs.mkdir(path.dirname(logFilePath), { recursive: true });
-  const separator = await fs.stat(logFilePath)
-    .then(({ size }) => size > 0 ? '\n\n---\n\n' : '')
-    .catch((err) => {
+  for (const logFilePath of logFilePaths) {
+    try {
+      await fs.access(path.dirname(logFilePath));
+    } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        return '';
+        continue;
       }
 
       throw err;
-    });
+    }
 
-  await fs.appendFile(logFilePath, `${separator}${outputText.trim()}\n`, 'utf8');
+    try {
+      const separator = await fs.stat(logFilePath)
+        .then(({ size }) => size > 0 ? '\n\n---\n\n' : '')
+        .catch((err) => {
+          if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+            return '';
+          }
+
+          throw err;
+        });
+
+      await fs.appendFile(logFilePath, `${separator}${outputText.trim()}\n`, 'utf8');
+      return;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  throw new Error('No selection assistant log path is available.');
 };

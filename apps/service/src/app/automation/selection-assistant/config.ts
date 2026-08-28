@@ -6,11 +6,21 @@ export type SelectionAssistantConfig = {
   baseUrl: string;
   model: string;
   promptFilePath: string;
-  logFilePath: string;
+  logFilePaths: string[];
 };
 
 const resolvePath = (value: string): string => {
   return path.isAbsolute(value) ? value : path.resolve(process.cwd(), value);
+};
+
+const resolveLogFilePaths = (value: string | undefined): string[] => {
+  const logFilePaths = value
+    ?.split(',')
+    .map((candidate) => candidate.trim())
+    .filter(Boolean);
+
+  return (logFilePaths?.length ? logFilePaths : ['tmp/selection-assistant-log.md'])
+    .map(resolvePath);
 };
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
@@ -29,5 +39,5 @@ export const readSelectionAssistantConfig = (env: NodeJS.ProcessEnv = process.en
   baseUrl: normalizeBaseUrl(env.SELECTION_ASSISTANT_BASE_URL?.trim() || ''),
   model: env.SELECTION_ASSISTANT_MODEL?.trim() || 'gpt-4.1-mini',
   promptFilePath: resolvePromptFilePath(env.SELECTION_ASSISTANT_PROMPT_PATH),
-  logFilePath: resolvePath(env.SELECTION_ASSISTANT_LOG_PATH?.trim() || 'tmp/selection-assistant-log.md'),
+  logFilePaths: resolveLogFilePaths(env.SELECTION_ASSISTANT_LOG_PATH),
 });

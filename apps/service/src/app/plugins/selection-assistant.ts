@@ -108,8 +108,8 @@ export default fp(async function selectionAssistantPlugin(fastify: FastifyInstan
 
         controller.publish(entry);
 
-        void appendSelectionAssistantOutput(config.logFilePath, entry.outputText).catch((err) => {
-          fastify.log.error({ err, logFilePath: config.logFilePath }, 'Selection assistant could not write the local output log.');
+        void appendSelectionAssistantOutput(config.logFilePaths, entry.outputText).catch((err) => {
+          fastify.log.error({ err, logFilePaths: config.logFilePaths }, 'Selection assistant could not write the local output log.');
         });
       })
       .catch((err: unknown) => {
@@ -129,7 +129,7 @@ export default fp(async function selectionAssistantPlugin(fastify: FastifyInstan
 
   fastify.log.info(
     {
-      logFilePath: config.logFilePath,
+      logFilePaths: config.logFilePaths,
       model: config.model,
       promptFilePath: config.promptFilePath,
       shortcut: hotkey.shortcut,
