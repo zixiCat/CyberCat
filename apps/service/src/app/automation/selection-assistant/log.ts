@@ -8,15 +8,6 @@ export const appendSelectionAssistantOutput = async (
   for (const logFilePath of logFilePaths) {
     try {
       await fs.access(path.dirname(logFilePath));
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        continue;
-      }
-
-      throw err;
-    }
-
-    try {
       const separator = await fs.stat(logFilePath)
         .then(({ size }) => size > 0 ? '\n\n---\n\n' : '')
         .catch((err) => {
@@ -29,12 +20,8 @@ export const appendSelectionAssistantOutput = async (
 
       await fs.appendFile(logFilePath, `${separator}${outputText.trim()}\n`, 'utf8');
       return;
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        continue;
-      }
-
-      throw err;
+    } catch {
+      continue;
     }
   }
 

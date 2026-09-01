@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { Button, Input } from 'antd';
 import type { InputRef } from 'antd';
 import clsx from 'clsx';
@@ -38,20 +38,6 @@ export const CommandListPanel = ({
     },
     [filterInputRef]
   );
-
-  useEffect(() => {
-    const handleFocus = () => {
-      inputRef.current?.focus();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    // Initial focus
-    handleFocus();
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, []);
 
   return (
     <section className="panel command-list-panel">
