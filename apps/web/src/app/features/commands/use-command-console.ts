@@ -38,6 +38,7 @@ const initialState: CommandConsoleState = {
 
 export interface UseCommandConsoleResult {
   filter: string;
+  focusFilterInput: () => void;
   filterInputRef: (element: HTMLInputElement | null) => void;
   filteredCommands: CommandDefinition[];
   isLoadingCommands: boolean;
@@ -53,6 +54,7 @@ export interface UseCommandConsoleResult {
 export const useCommandConsole = (): UseCommandConsoleResult => {
   const nextLineIdRef = useRef(1);
   const activeRunRef = useRef<SSE | null>(null);
+  const filterInputElementRef = useRef<HTMLInputElement | null>(null);
   const [state, setState] = useSetState<CommandConsoleState>(initialState);
 
   const appendLine = useCallback(
@@ -252,9 +254,22 @@ export const useCommandConsole = (): UseCommandConsoleResult => {
     [moveSelection, runSelectedFilteredCommand]
   );
 
+  const focusFilterInput = useCallback(() => {
+    filterInputElementRef.current?.focus();
+  }, []);
+
+  const setFilterInputRef = useCallback(
+    (element: HTMLInputElement | null) => {
+      filterInputElementRef.current = element;
+      filterInputRef(element);
+    },
+    [filterInputRef]
+  );
+
   return {
     filter: state.filter,
-    filterInputRef,
+    focusFilterInput,
+    filterInputRef: setFilterInputRef,
     filteredCommands,
     isLoadingCommands: state.isLoadingCommands,
     isRunning: state.isRunning,

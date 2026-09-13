@@ -1,11 +1,15 @@
 import { Anchor } from 'antd';
 import { Languages, Library, ScrollText } from 'lucide-react';
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 
 const WORKSPACE_ANCHORS = ['command-library', 'execution-log', 'selection-assistant'] as const;
 
 export interface WorkspaceNavigationHandle {
   navigateTo: (anchor: string) => void;
+}
+
+interface WorkspaceNavigationProps {
+  onNavigate?: (anchor: string) => void;
 }
 
 const navigationItems = [
@@ -41,16 +45,21 @@ const navigationItems = [
   },
 ];
 
-export const WorkspaceNavigation = forwardRef<WorkspaceNavigationHandle>((_, ref) => {
+export const WorkspaceNavigation = forwardRef<WorkspaceNavigationHandle, WorkspaceNavigationProps>(
+  ({ onNavigate }, ref) => {
   const anchorRef = useRef<HTMLDivElement>(null);
 
-  const clickAnchor = (anchor: string) => {
-    const link = Array.from(anchorRef.current?.querySelectorAll('a') ?? []).find(
-      (element) => element.getAttribute('href') === `#${anchor}`
-    );
+  const clickAnchor = useCallback(
+    (anchor: string) => {
+      const link = Array.from(anchorRef.current?.querySelectorAll('a') ?? []).find(
+        (element) => element.getAttribute('href') === `#${anchor}`
+      );
 
-    link?.click();
-  };
+      link?.click();
+      onNavigate?.(anchor);
+    },
+    [onNavigate]
+  );
 
   useImperativeHandle(ref, () => ({
     navigateTo: clickAnchor,
@@ -77,7 +86,7 @@ export const WorkspaceNavigation = forwardRef<WorkspaceNavigationHandle>((_, ref
     return () => {
       window.removeEventListener('keydown', moveWorkspaceTab);
     };
-  }, []);
+  }, [clickAnchor]);
 
   return (
     <nav className="workspace-navigation" aria-label="CyberCat workspace">
@@ -89,8 +98,10 @@ export const WorkspaceNavigation = forwardRef<WorkspaceNavigationHandle>((_, ref
           replace
           offsetTop={52}
           className="workspace-anchor"
+          onChange={(anchor) => onNavigate?.(anchor.slice(1))}
         />
       </div>
     </nav>
-  );
-});
+    );
+  }
+);

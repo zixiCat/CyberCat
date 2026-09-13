@@ -12,6 +12,7 @@ export const CommandConsole = () => {
   const workspaceNavigationRef = useRef<WorkspaceNavigationHandle>(null);
   const {
     filter,
+    focusFilterInput,
     filterInputRef,
     filteredCommands,
     isLoadingCommands,
@@ -27,15 +28,36 @@ export const CommandConsole = () => {
     workspaceNavigationRef.current?.navigateTo(SELECTION_ASSISTANT_ANCHOR);
   }, []);
 
+  const focusFilterForNavigation = useCallback(
+    (anchor: string) => {
+      if (anchor === COMMAND_LIBRARY_ANCHOR) {
+        requestAnimationFrame(focusFilterInput);
+      }
+    },
+    [focusFilterInput]
+  );
+
   useEffect(() => {
     if (isRunning) {
       workspaceNavigationRef.current?.navigateTo(EXECUTION_LOG_ANCHOR);
     }
   }, [isRunning]);
 
+  useEffect(() => {
+    const focusFilterWhenCommandLibraryIsActive = () => {
+      if (window.location.hash.slice(1) === COMMAND_LIBRARY_ANCHOR) {
+        requestAnimationFrame(focusFilterInput);
+      }
+    };
+
+    return () => {
+      window.removeEventListener('focus', focusFilterWhenCommandLibraryIsActive);
+    };
+  }, [focusFilterInput]);
+
   return (
     <>
-      <WorkspaceNavigation ref={workspaceNavigationRef} />
+      <WorkspaceNavigation ref={workspaceNavigationRef} onNavigate={focusFilterForNavigation} />
       <main className="workspace-content">
         <div id={COMMAND_LIBRARY_ANCHOR} className="workspace-section">
           <CommandListPanel
