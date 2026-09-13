@@ -1,3 +1,9 @@
+---
+name: Frontend UI Standards
+description: Common standards for React frontend code. Use when editing components, hooks, styling, state management, routing, or frontend-to-backend integration.
+applyTo: "apps/web/**"
+---
+
 # Web Standards
 
 ## 1. React 19 & Feature State
