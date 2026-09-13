@@ -1,3 +1,4 @@
+import { ThemeToggle } from '../../components/theme-toggle';
 import { Anchor } from 'antd';
 import { Languages, Library, ScrollText } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
@@ -90,6 +91,7 @@ export const WorkspaceNavigation = forwardRef<WorkspaceNavigationHandle, Workspa
 
   return (
     <nav className="workspace-navigation" aria-label="CyberCat workspace">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center gap-x-5">
       <div className="workspace-navigation-inner" ref={anchorRef}>
         <Anchor
           affix={false}
@@ -100,6 +102,8 @@ export const WorkspaceNavigation = forwardRef<WorkspaceNavigationHandle, Workspa
           className="workspace-anchor"
           onChange={(anchor) => onNavigate?.(anchor.slice(1))}
         />
+      </div>
+      <ThemeToggle />
       </div>
     </nav>
     );

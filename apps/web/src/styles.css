@@ -5,8 +5,8 @@
 @layer components {
   .app-shell {
     min-height: 100vh;
-    color: #0f172a;
-    background: #f8fafc;
+    color: var(--app-text);
+    background: var(--app-bg);
   }
 
   .workspace-content {
@@ -29,13 +29,14 @@
     top: 0;
     z-index: 20;
     padding: 0 20px;
-    background: rgb(255 255 255 / 95%);
-    border-bottom: 1px solid #e2e8f0;
+    background: var(--app-surface);
+    border-bottom: 1px solid var(--app-border);
     backdrop-filter: blur(8px);
   }
 
   .workspace-navigation-inner {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     max-width: 1600px;
     margin: 0 auto;
     overflow-x: auto;
@@ -62,9 +63,9 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--app-border);
     border-radius: 6px;
-    background: #fff;
+    background: var(--app-surface);
   }
 
   .panel-header {
@@ -73,7 +74,7 @@
     justify-content: space-between;
     gap: 20px;
     padding: 20px;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--app-border);
   }
 
   .panel-title {
@@ -114,7 +115,7 @@
 
   .panel-description {
     margin: 4px 0 0;
-    color: #64748b;
+    color: var(--app-text-secondary);
     font-size: 14px;
   }
 
@@ -132,7 +133,7 @@
 
   .panel-muted {
     padding: 12px 8px;
-    color: #64748b;
+    color: var(--app-text-secondary);
     font-size: 14px;
   }
 
@@ -142,7 +143,7 @@
 
   .command-filter {
     padding: 12px 20px;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--app-border);
   }
 
   .command-filter .ant-input-prefix svg {
@@ -198,7 +199,7 @@
   .command-value {
     margin-top: 4px;
     overflow-wrap: anywhere;
-    color: #64748b;
+    color: var(--app-text-secondary);
     font-family: monospace;
   }
 
@@ -294,7 +295,7 @@
 
   .assistant-result {
     padding: 16px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--app-border);
     border-radius: 6px;
   }
 
@@ -316,7 +317,7 @@
   }
 
   .selection-assistant-markdown {
-    color: #334155;
+    color: var(--app-text);
     font-size: 14px;
     line-height: 24px;
   }
@@ -332,11 +333,11 @@
 
   .markdown-code {
     padding: 2px 4px;
-    color: #1e293b;
-    background: #f1f5f9;
+    color: var(--app-text);
+    background: var(--app-code-bg);
     border-radius: 4px;
     font-family: monospace;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .markdown-code-block {
@@ -347,7 +348,13 @@
     background: #09090b;
     border-radius: 6px;
     font-family: monospace;
-    font-size: 13px;
+    font-size: 14px;
+  }
+
+  .markdown-code-block .markdown-code {
+    padding: 0;
+    color: inherit;
+    background: transparent;
   }
 
   .markdown-code-block:first-child {
@@ -355,15 +362,15 @@
   }
 
   .markdown-strong {
-    color: #0f172a;
+    color: var(--app-text);
     font-weight: 600;
   }
 
   .assistant-empty {
     padding: 32px 20px;
-    color: #64748b;
+    color: var(--app-text-secondary);
     font-size: 14px;
-    border: 1px dashed #e2e8f0;
+    border: 1px dashed var(--app-border);
     border-radius: 6px;
   }
 }
@@ -395,7 +402,7 @@
     }
 
     :where(.dark, .dark *)::-webkit-scrollbar-thumb:hover {
-      background-color: #64748b;
+      background-color: var(--app-text-secondary);
     }
   }
 
