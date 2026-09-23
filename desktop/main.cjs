@@ -44,7 +44,7 @@ const openWindow = (url) => {
     title: 'CyberCat',
     width: 1280,
     height: 850,
-    minWidth: 900,
+    minWidth: 660,
     minHeight: 600,
     webPreferences: {
       nodeIntegration: false,
