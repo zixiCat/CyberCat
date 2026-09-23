@@ -48,6 +48,31 @@ npx nx build @cyber-cat/service
 npx nx build @cyber-cat/web
 ```
 
+## Windows desktop app
+
+Run the Electron app against locally built service and web assets:
+
+```sh
+npm run desktop:start
+```
+
+Create a portable Windows app folder or an installer:
+
+```sh
+npm run desktop:pack
+npm run desktop:dist
+```
+
+Each build is written to a timestamped folder under `desktop-release/`. On first
+launch, the packaged app copies the
+`commands/` and `prompts/` folders and an editable `.env` file to
+`%APPDATA%\CyberCat\workspace`. Edit those files there, then restart CyberCat to
+reload environment settings. Existing files in that workspace are kept when the app
+is updated. The Bash commands require `bash` on your Windows `PATH` (for example,
+Git Bash). Set `CYBERCAT_BASH_PATH` in the workspace `.env` if Git Bash is
+installed in a custom location. The selection features use Windows PowerShell
+and run on the local desktop.
+
 ## Selection Speaker
 
 The selection speaker listens for a global shortcut, reads the current Windows selection, requests audio from an OpenAI-compatible chat completions endpoint, writes a temporary WAV file, and plays it locally.

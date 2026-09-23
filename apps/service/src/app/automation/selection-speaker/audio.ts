@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { once } from 'node:events';
+import { existsSync } from 'node:fs';
 import ffplayStatic = require('ffplay-static');
 
 const PCM_SAMPLE_RATE = 24_000;
@@ -13,8 +14,13 @@ const PCM_BYTES_PER_SECOND = PCM_SAMPLE_RATE * PCM_CHANNEL_COUNT * PCM_BYTES_PER
 const STARTUP_BUFFER_BYTES = PCM_BYTES_PER_SECOND * STARTUP_BUFFER_MS / 1_000;
 const EDGE_SILENCE = Buffer.alloc(PCM_BYTES_PER_SECOND * EDGE_PADDING_MS / 1_000);
 
+const getFfplayPath = (): string => {
+  const packagedPath = ffplayStatic.default.replace(/\.asar([\\/])/, '.asar.unpacked$1');
+  return existsSync(packagedPath) ? packagedPath : ffplayStatic.default;
+};
+
 const startFfplay = (): ChildProcessWithoutNullStreams => {
-  const playbackProcess = spawn(ffplayStatic.default, [
+  const playbackProcess = spawn(getFfplayPath(), [
     '-nodisp',
     '-autoexit',
     '-loglevel', 'error',

@@ -19,6 +19,7 @@ const toCommandDefinition = (candidateRoot: string, folder: string, prefix: stri
   return {
     name: toCommandName(prefix, fileName),
     command: `bash ./${relativePath}`,
+    scriptPath: `./${relativePath}`,
     folder: folder as CommandDefinition['folder'],
   };
 };

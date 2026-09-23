@@ -1,18 +1,11 @@
-import Fastify from 'fastify';
-import { app } from './app/app';
+import { createServer } from './server';
 
 process.loadEnvFile?.();
 
 const host = process.env.HOST ?? 'localhost';
 const port = process.env.PORT ? Number(process.env.PORT) : 3333;
 
-// Instantiate Fastify with some config
-const server = Fastify({
-  logger: true,
-});
-
-// Register your application as a normal plugin.
-server.register(app);
+const server = createServer();
 
 // Start listening.
 server.listen({ port, host }, (err) => {

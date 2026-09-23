@@ -1,17 +1,60 @@
 {
   "name": "@cyber-cat/source",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "CyberCat web and service control panel for personal scripts.",
   "license": "MIT",
   "scripts": {
     "start": "nx run-many --target=serve --projects=@cyber-cat/service,@cyber-cat/web --parallel=2 --outputStyle=stream",
     "start:web": "nx serve web",
-    "start:service": "nx serve service"
+    "start:service": "nx serve service",
+    "desktop:build": "nx run-many --target=build --projects=@cyber-cat/service,@cyber-cat/web --parallel=2",
+    "desktop:start": "npm run desktop:build && electron .",
+    "desktop:pack": "npm run desktop:build && node desktop/package.cjs --dir",
+    "desktop:dist": "npm run desktop:build && node desktop/package.cjs --win nsis"
+  },
+  "main": "desktop/main.cjs",
+  "build": {
+    "appId": "com.zixicat.cybercat",
+    "productName": "CyberCat",
+    "npmRebuild": false,
+    "directories": {
+      "output": "desktop-release"
+    },
+    "files": [
+      "desktop/**/*",
+      "apps/service/dist/**/*",
+      "apps/web/dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "commands",
+        "to": "defaults/commands"
+      },
+      {
+        "from": "prompts",
+        "to": "defaults/prompts"
+      },
+      {
+        "from": ".env.example",
+        "to": "defaults/.env.example"
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/uiohook-napi/prebuilds/**/*",
+      "node_modules/ffplay-static/bin/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "brand/CyberCat.ico"
+    }
   },
   "private": true,
   "dependencies": {
     "@fastify/autoload": "~6.0.3",
     "@fastify/sensible": "~6.0.2",
+    "@fastify/static": "^10.1.4",
+    "@sinclair/typebox": "^0.34.52",
     "antd": "^6.1.4",
     "change-case": "^5.4.4",
     "clsx": "^2.1.1",
@@ -64,6 +107,8 @@
     "@types/node": "20.19.9",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "electron": "^44.4.4",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.27.0",
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^10.0.0",

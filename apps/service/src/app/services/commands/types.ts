@@ -3,6 +3,7 @@ import { Static, Type } from '@sinclair/typebox';
 export const commandSchema = Type.Object({
   name: Type.String(),
   command: Type.String(),
+  scriptPath: Type.String(),
   folder: Type.Union([Type.Literal('xgd'), Type.Literal('zixiCat')]),
 });
 
