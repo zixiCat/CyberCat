@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, Menu } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -65,6 +65,7 @@ const openWindow = (url) => {
 };
 
 const start = async () => {
+  Menu.setApplicationMenu(null);
   const workspaceRoot = prepareWorkspace();
   process.chdir(workspaceRoot);
   process.env.SCRIPTS_ROOT = workspaceRoot;
