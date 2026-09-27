@@ -1,5 +1,4 @@
 import { Select } from 'antd';
-import { Moon } from 'lucide-react';
 import { useThemeStore } from '../theme-store';
 
 export function ThemeToggle() {
@@ -7,10 +6,10 @@ export function ThemeToggle() {
 
   return (
     <div className="flex justify-between items-center gap-2">
-      <Moon size={16} aria-hidden="true" />
       <Select
         aria-label="Theme"
         size="small"
+        variant="borderless"
         value={preference}
         onChange={setPreference}
         options={[
