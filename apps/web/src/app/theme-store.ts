@@ -2,13 +2,20 @@ import { create } from 'zustand';
 
 const STORAGE_KEY = 'cybercat-theme';
 type ThemeMode = 'light' | 'dark';
+type ThemePreference = ThemeMode | 'system';
+const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
 
-function readTheme(): ThemeMode {
+function readPreference(): ThemePreference {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved === 'light' || saved === 'dark' ? saved : 'system';
   } catch {
-    return 'light';
+    return 'system';
   }
+}
+
+function resolveMode(preference: ThemePreference): ThemeMode {
+  return preference === 'system' ? (systemTheme.matches ? 'dark' : 'light') : preference;
 }
 
 function applyTheme(mode: ThemeMode) {
@@ -18,21 +25,34 @@ function applyTheme(mode: ThemeMode) {
 
 interface ThemeState {
   mode: ThemeMode;
-  setMode: (mode: ThemeMode) => void;
+  preference: ThemePreference;
+  setPreference: (preference: ThemePreference) => void;
 }
 
-const initialMode = readTheme();
+const initialPreference = readPreference();
+const initialMode = resolveMode(initialPreference);
 applyTheme(initialMode);
 
 export const useThemeStore = create<ThemeState>((set) => ({
   mode: initialMode,
-  setMode: (mode) => {
+  preference: initialPreference,
+  setPreference: (preference) => {
+    const mode = resolveMode(preference);
     applyTheme(mode);
-    set({ mode });
+    set({ mode, preference });
     try {
-      localStorage.setItem(STORAGE_KEY, mode);
+      if (preference === 'system') localStorage.removeItem(STORAGE_KEY);
+      else localStorage.setItem(STORAGE_KEY, preference);
     } catch {
       // The control still works when browser storage is unavailable.
     }
   },
 }));
+
+systemTheme.addEventListener('change', () => {
+  if (useThemeStore.getState().preference === 'system') {
+    const mode = resolveMode('system');
+    applyTheme(mode);
+    useThemeStore.setState({ mode });
+  }
+});
