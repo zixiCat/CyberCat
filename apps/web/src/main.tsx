@@ -1,18 +1,15 @@
 import { StrictMode } from 'react';
-import { ConfigProvider, theme } from 'antd';
+import { ConfigProvider } from 'antd';
 import * as ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './app/app';
 import { useThemeStore } from './app/theme-store';
+import { getBrandTheme } from './brand-theme';
 
 function ThemedApp() {
   const mode = useThemeStore((state) => state.mode);
   return (
-    <ConfigProvider theme={{
-      cssVar: {},
-      algorithm: mode === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
-      token: { colorPrimary: '#b26ce8' },
-    }}>
+    <ConfigProvider theme={getBrandTheme(mode)}>
       <BrowserRouter><App /></BrowserRouter>
     </ConfigProvider>
   );

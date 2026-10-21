@@ -1,5 +1,17 @@
 {
   "name": "@cyber-cat/web",
-  "version": "1.0.4",
-  "private": true
+  "version": "1.0.5",
+  "private": true,
+  "nx": {
+    "targets": {
+      "build": {
+        "inputs": [
+          "production",
+          "^production",
+          "{workspaceRoot}/brand/*.png",
+          "{workspaceRoot}/brand/*.ico"
+        ]
+      }
+    }
+  }
 }

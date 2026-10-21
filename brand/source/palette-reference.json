@@ -1,0 +1,32 @@
+{
+  "source": "CyberKit/pets/clover-detailed/clover.png",
+  "sourceCommit": "469891df47213ca0988efd05b55caf205da33534",
+  "sha256": "98af769d74abbd623d27320b767142163b8c9260c94147096ca04c432eb82102",
+  "dimensions": {
+    "width": 1199,
+    "height": 1312
+  },
+  "sampling": "Raw RGBA pixels with System.Drawing.GetPixel; coordinates are zero-based in the canonical detailed source.",
+  "samples": [
+    {
+      "role": "hair midtone",
+      "location": "bangs midtone",
+      "x": 580,
+      "y": 330,
+      "hex": "#BCD673",
+      "alpha": 253,
+      "hueDegrees": 75.8
+    },
+    {
+      "role": "hair highlight",
+      "location": "hair highlight",
+      "x": 620,
+      "y": 350,
+      "hex": "#CEE181",
+      "alpha": 253,
+      "hueDegrees": 71.9
+    }
+  ],
+  "referenceCheck": "The upper design in the user-provided two-design reference matches the canonical detailed artwork.",
+  "purpose": "Character artwork reference only. The UI primary is explicitly user-selected as #40C977."
+}

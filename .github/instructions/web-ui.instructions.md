@@ -33,7 +33,7 @@ applyTo: "apps/web/**"
 
 - **Icons:** Use `lucide-react` for all UI icons.
 - **Typography:** Minimum font size is **14px** for readability.
-- **Theming:** Wrap the application with Ant Design's `ConfigProvider` and customize global design through its `theme` tokens. The primary brand color is `#b26ce8`; define it as the global `colorPrimary` seed token and let Ant Design derive component states from it. Do not override primary Ant Design controls with unrelated hard-coded accent colors. Default to Light Mode. Apply `dark:` utility classes for Tailwind dark mode support (e.g., `dark:text-white`).
+- **Theming:** Wrap the application with Ant Design's `ConfigProvider` and customize global design through its `theme` tokens. The user-selected primary brand color is exactly `#40c977`; preserve this base in light and dark themes. Use dark green foregrounds on bright primary controls. Keep the shared palette in `src/brand-theme.ts`, with related green hover/active states and theme-specific text/link colors for readable contrast. Preserve semantic status colors. Do not override primary Ant Design controls with unrelated hard-coded accent colors. Default to the operating system light/dark theme, while allowing an explicit user override. Apply `dark:` utility classes for Tailwind dark mode support (e.g., `dark:text-white`).
 - **Animations:** Use `motion/react` for all UI transitions; avoid raw CSS animations.
 
 ## 4. Coding Patterns

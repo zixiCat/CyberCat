@@ -112,7 +112,18 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
               transition={{ duration: 0.18, ease: 'easeOut' }}
               className="assistant-empty"
             >
-              Waiting for the latest selection assistant result. {helperMessage}
+              <img
+                className="assistant-empty-mascot"
+                src="/assets/brand/CyberCatDetailed.png"
+                width={140}
+                height={175}
+                alt=""
+                aria-hidden="true"
+              />
+              <div>
+                <p className="assistant-empty-title">Ready when you are</p>
+                <p>Waiting for the latest selection assistant result. {helperMessage}</p>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

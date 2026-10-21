@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { theme } from 'antd';
 import { CommandConsole } from './features/commands/command-console';
+import { brandPalette } from '../brand-theme';
 
 export function App() {
   const { token } = theme.useToken();
@@ -11,7 +12,8 @@ export function App() {
     '--app-text-secondary': token.colorTextSecondary,
     '--app-border': token.colorBorderSecondary,
     '--app-code-bg': token.colorFillTertiary,
-    '--app-color-primary': token.colorPrimary,
+    '--app-color-primary': token.colorPrimaryText,
+    '--app-color-terminal-accent': brandPalette.terminalAccent,
     '--app-color-primary-bg': token.colorPrimaryBg,
     '--app-color-primary-border': token.colorPrimaryBorder,
     '--app-color-primary-text': token.colorPrimaryText,

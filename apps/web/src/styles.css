@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './brand.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -83,34 +84,6 @@
     font-size: 20px;
     font-weight: 600;
     line-height: 1.25;
-  }
-
-  .brand-title {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    gap: 12px;
-  }
-
-  .brand-title-mascot {
-    width: 48px;
-    height: 48px;
-    flex: 0 0 48px;
-    object-fit: contain;
-  }
-
-  .brand-title-copy {
-    display: flex;
-    min-width: 0;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
-
-  .brand-title-wordmark {
-    width: auto;
-    height: 18px;
-    object-fit: contain;
   }
 
   .panel-description {
@@ -205,7 +178,7 @@
 
   .command-option-selected .command-value {
     color: inherit;
-    opacity: 0.8;
+    opacity: 1;
   }
 
   .terminal-panel {
@@ -252,17 +225,11 @@
   }
 
   .terminal-line-system {
-    color: var(--app-color-primary);
+    color: var(--app-color-terminal-accent);
   }
 
   .terminal-line-stdout {
     color: #d1fae5;
-  }
-
-  @media (max-width: 520px) {
-    .brand-title-wordmark {
-      display: none;
-    }
   }
 
   .assistant-panel {
@@ -367,7 +334,11 @@
   }
 
   .assistant-empty {
-    padding: 32px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 30px 20px;
     color: var(--app-text-secondary);
     font-size: 14px;
     border: 1px dashed var(--app-border);

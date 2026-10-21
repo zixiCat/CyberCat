@@ -6,17 +6,15 @@ export const BrandTitle = ({ title }: BrandTitleProps) => (
   <div className="brand-title">
     <img
       className="brand-title-mascot"
-      src="/assets/brand/CyberCat.png"
+      src="/assets/brand/CyberCatDetailedAvatar.png"
+      width={60}
+      height={60}
       alt=""
       aria-hidden="true"
     />
     <div className="brand-title-copy">
-      <img
-        className="brand-title-wordmark"
-        src="/assets/brand/CyberCat4Text.png"
-        alt="CyberCat"
-      />
-      <span className="panel-title">{title}</span>
+      <span className="brand-title-wordmark">Cyber<span>Cat</span></span>
+      <h2 className="panel-title">{title}</h2>
     </div>
   </div>
 );

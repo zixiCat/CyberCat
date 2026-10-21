@@ -42,6 +42,7 @@ const prepareWorkspace = () => {
 const openWindow = (url) => {
   const window = new BrowserWindow({
     title: 'CyberCat',
+    icon: path.join(app.getAppPath(), 'apps', 'web', 'dist', 'CyberCatDetailed.ico'),
     width: 1280,
     height: 850,
     minWidth: 660,

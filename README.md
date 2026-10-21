@@ -1,8 +1,10 @@
 # CyberCat
 
 <p align="center">
-	<img src="./brand/CyberCatWithName.png" width="220" alt="CyberCat avatar" />
+	<img src="./brand/CyberCatDetailed.png" width="220" alt="CyberCat, a green-haired cat-eared scientist with goggles and a detailed ivory coat" />
 </p>
+
+CyberCat's [green theme and detailed scientist mascot](./brand/README.md) take inspiration from Detailed Clover while keeping CyberCat's cat ears and technology details.
 
 CyberCat is a small Nx workspace with:
 

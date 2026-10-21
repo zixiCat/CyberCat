@@ -1,6 +1,6 @@
 {
   "name": "@cyber-cat/source",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "CyberCat web and service control panel for personal scripts.",
   "license": "MIT",
   "scripts": {
@@ -46,7 +46,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "brand/CyberCat.ico"
+      "icon": "brand/CyberCatDetailed.ico"
     }
   },
   "private": true,

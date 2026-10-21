@@ -1,0 +1,78 @@
+@layer components {
+  .brand-title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 15px;
+  }
+
+  .brand-title-mascot {
+    width: 60px;
+    height: 60px;
+    flex: 0 0 60px;
+    object-fit: contain;
+  }
+
+  .brand-title-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+
+  .brand-title-wordmark {
+    color: var(--app-color-primary-text);
+    font-size: 18px;
+    font-weight: 750;
+    line-height: 1;
+    letter-spacing: -0.5px;
+  }
+
+  .brand-title-wordmark > span {
+    color: var(--app-text);
+  }
+
+  .terminal-panel .brand-title-wordmark {
+    color: var(--app-color-terminal-accent);
+  }
+
+  .terminal-panel .brand-title-wordmark > span {
+    color: #f4f4f5;
+  }
+
+  .assistant-empty-mascot {
+    width: 140px;
+    height: 175px;
+    flex: 0 0 140px;
+    object-fit: contain;
+  }
+
+  .assistant-empty-title {
+    margin: 0 0 10px;
+    color: var(--app-text);
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  @media (max-width: 520px) {
+    .brand-title {
+      gap: 10px;
+    }
+
+    .brand-title-mascot {
+      width: 45px;
+      height: 45px;
+      flex-basis: 45px;
+    }
+
+    .brand-title-wordmark {
+      font-size: 14px;
+    }
+
+    .assistant-empty {
+      flex-direction: column;
+      text-align: center;
+    }
+  }
+}

@@ -71,7 +71,11 @@ module.exports = {
       index: './src/index.html',
       baseHref: '/',
       assets: [
-        "./src/favicon.ico",
+        {
+          input: "../../brand",
+          glob: "CyberCatDetailed.ico",
+          output: ".",
+        },
         "./src/assets",
         {
           input: "../../brand",
