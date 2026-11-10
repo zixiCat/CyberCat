@@ -1,9 +1,8 @@
 import { Alert, Spin } from 'antd';
 import { Languages, LoaderCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { BrandTitle } from '../../components/brand-title';
+import { SelectionAssistantMarkdown } from './selection-assistant-markdown';
 import { useSelectionAssistantFeed } from './use-selection-assistant-feed';
 
 interface SelectionAssistantPanelProps {
@@ -66,31 +65,10 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
                       </div>
                     ) : null}
                     <div className="selection-assistant-markdown">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          h1: ({ children }) => <h3 className="mt-4 text-base font-semibold first:mt-0">{children}</h3>,
-                          h2: ({ children }) => <h3 className="mt-4 text-base font-semibold first:mt-0">{children}</h3>,
-                          h3: ({ children }) => <h4 className="mt-4 text-sm font-semibold first:mt-0">{children}</h4>,
-                          p: ({ children }) => <p className="mt-3 first:mt-0">{children}</p>,
-                          ul: ({ children }) => <ul className="mt-3 list-disc space-y-1 pl-5 first:mt-0">{children}</ul>,
-                          ol: ({ children }) => <ol className="mt-3 list-decimal space-y-1 pl-5 first:mt-0">{children}</ol>,
-                          li: ({ children }) => <li>{children}</li>,
-                          code: ({ children }) => (
-                            <code className="markdown-code">
-                              {children}
-                            </code>
-                          ),
-                          pre: ({ children }) => (
-                            <pre className="markdown-code-block">
-                              {children}
-                            </pre>
-                          ),
-                          strong: ({ children }) => <strong className="markdown-strong">{children}</strong>,
-                        }}
-                      >
-                        {entry.outputText}
-                      </ReactMarkdown>
+                      <SelectionAssistantMarkdown
+                        outputText={entry.outputText}
+                        copyEnabled={entry.status === 'complete'}
+                      />
                       {entry.status === 'streaming' ? (
                         <motion.span
                           aria-hidden="true"
