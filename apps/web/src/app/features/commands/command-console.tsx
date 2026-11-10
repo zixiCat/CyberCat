@@ -3,6 +3,7 @@ import { CommandListPanel } from './command-list-panel';
 import { CommandTerminalPanel } from './command-terminal-panel';
 import { useCommandConsole } from './use-command-console';
 import { SelectionAssistantPanel } from '../selection-assistant/selection-assistant-panel';
+import { TranslationPanel } from '../translation/translation-panel';
 import { WorkspaceNavigation, type WorkspaceNavigationHandle } from '../workspace/workspace-navigation';
 
 const COMMAND_LIBRARY_ANCHOR = 'command-library';
@@ -77,6 +78,9 @@ export const CommandConsole = () => {
         </div>
         <div id={SELECTION_ASSISTANT_ANCHOR} className="workspace-section">
           <SelectionAssistantPanel onEntry={showSelectionAssistant} />
+        </div>
+        <div id="translation" className="workspace-section min-h-[calc(100dvh-80px)]">
+          <TranslationPanel />
         </div>
       </main>
     </>

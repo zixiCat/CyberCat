@@ -1,9 +1,9 @@
 import { ThemeToggle } from '../../components/theme-toggle';
 import { Anchor } from 'antd';
-import { Languages, Library, ScrollText } from 'lucide-react';
+import { BookOpen, Languages, Library, ScrollText } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 
-const WORKSPACE_ANCHORS = ['command-library', 'execution-log', 'selection-assistant'] as const;
+const WORKSPACE_ANCHORS = ['command-library', 'execution-log', 'selection-assistant', 'translation'] as const;
 
 export interface WorkspaceNavigationHandle {
   navigateTo: (anchor: string) => void;
@@ -41,6 +41,16 @@ const navigationItems = [
       <span className="navigation-label">
         <Languages aria-hidden="true" />
         Selection Assistant
+      </span>
+    ),
+  },
+  {
+    key: 'translation',
+    href: '#translation',
+    title: (
+      <span className="navigation-label">
+        <BookOpen aria-hidden="true" />
+        Translation
       </span>
     ),
   },

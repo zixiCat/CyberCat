@@ -1,6 +1,6 @@
 {
   "name": "@cyber-cat/source",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "CyberCat web and service control panel for personal scripts.",
   "license": "MIT",
   "scripts": {
@@ -83,6 +83,7 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
+    "@fastify/type-provider-typebox": "5.2.0",
     "@babel/core": "^7.14.5",
     "@babel/preset-react": "^7.14.5",
     "@eslint/js": "^9.8.0",
