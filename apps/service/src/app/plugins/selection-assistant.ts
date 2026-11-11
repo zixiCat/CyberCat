@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import type { UiohookKeyboardEvent } from 'uiohook-napi';
@@ -8,8 +7,8 @@ import {
   createSelectionAssistantController,
   generateSelectionAssistantResponse,
   readSelectionAssistantConfig,
-  SelectionAssistantEntry,
 } from '../automation/selection-assistant';
+import { createSelectionAssistantRunner } from '../automation/selection-assistant/runner';
 import {
   getGlobalSelectedText,
   matchesHotkey,
@@ -17,114 +16,29 @@ import {
   registerGlobalKeydownListener,
 } from '../automation/selection-shortcuts';
 
-const createSelectionAssistantEntry = (
-  config: ReturnType<typeof readSelectionAssistantConfig>,
-  shortcut: string,
-  inputText: string,
-  outputText: string,
-  status: SelectionAssistantEntry['status'],
-  errorMessage?: string
-): SelectionAssistantEntry => ({
-  id: randomUUID(),
-  createdAt: new Date().toISOString(),
-  status,
-  shortcut,
-  inputText,
-  outputText,
-  errorMessage,
-  model: config.model,
-  promptFilePath: config.promptFilePath,
-});
-
-const runSelectionAssistantTask = async (
-  config: ReturnType<typeof readSelectionAssistantConfig>,
-  shortcut: string,
-  fastify: FastifyInstance,
-  pendingEntry: SelectionAssistantEntry
-): Promise<SelectionAssistantEntry | null> => {
-  const inputText = (await getGlobalSelectedText()).trim();
-
-  if (!inputText) {
-    fastify.log.warn('Selection assistant did not capture any selected text.');
-    return null;
-  }
-
-  const prompts = buildSelectionAssistantPrompts(config.promptFilePath, inputText);
-  const createUpdatedEntry = (
-    outputText: string,
-    status: SelectionAssistantEntry['status'],
-    errorMessage?: string
-  ): SelectionAssistantEntry => ({
-    ...pendingEntry,
-    inputText,
-    outputText,
-    status,
-    errorMessage,
-  });
-  const outputText = await generateSelectionAssistantResponse(config, prompts, (streamedOutputText) => {
-    fastify.selectionAssistant.publish(createUpdatedEntry(streamedOutputText, 'streaming'));
-  });
-
-  return createUpdatedEntry(outputText, 'complete');
-};
-
-const getErrorMessage = (error: unknown): string => error instanceof Error
-  ? error.message
-  : 'The selection assistant could not generate a response.';
-
 export default fp(async function selectionAssistantPlugin(fastify: FastifyInstance) {
   const config = readSelectionAssistantConfig();
   const hotkey = parseHotkey(config.shortcut);
   const controller = createSelectionAssistantController(hotkey.shortcut, null);
+  const run = createSelectionAssistantRunner({
+    config,
+    controller,
+    readSelectedText: getGlobalSelectedText,
+    generate: (inputText, onDelta) => generateSelectionAssistantResponse(
+      config, buildSelectionAssistantPrompts(config.promptFilePath, inputText), onDelta
+    ),
+    appendOutput: (outputText) => appendSelectionAssistantOutput(config.logFilePaths, outputText),
+    onError: (err) => fastify.log.error({ err }, 'Selection assistant task failed.'),
+  });
 
-  fastify.decorate('selectionAssistant', controller);
-
-  let isRunning = false;
+  fastify.decorate('selectionAssistant', { ...controller, run });
 
   const onKeyDown = (event: UiohookKeyboardEvent): void => {
-    if (!matchesHotkey(hotkey, event)) {
-      return;
-    }
-
-    if (isRunning) {
+    if (!matchesHotkey(hotkey, event)) return;
+    if (!run()) {
       fastify.log.warn('Selection assistant ignored a trigger while work was already in progress.');
-      return;
     }
-
-    isRunning = true;
-    const pendingEntry = createSelectionAssistantEntry(config, hotkey.shortcut, '', '', 'loading');
-    controller.publish(pendingEntry);
-
-    void runSelectionAssistantTask(config, hotkey.shortcut, fastify, pendingEntry)
-      .then((entry) => {
-        if (!entry) {
-          controller.publish({
-            ...pendingEntry,
-            status: 'error',
-            errorMessage: 'No selected text was captured.',
-          });
-          return;
-        }
-
-        controller.publish(entry);
-
-        void appendSelectionAssistantOutput(config.logFilePaths, entry.outputText).catch((err) => {
-          fastify.log.error({ err, logFilePaths: config.logFilePaths }, 'Selection assistant could not write the local output log.');
-        });
-      })
-      .catch((err: unknown) => {
-        fastify.log.error({ err }, 'Selection assistant could not generate a response.');
-        controller.publish({
-          ...pendingEntry,
-          status: 'error',
-          errorMessage: getErrorMessage(err),
-        });
-      })
-      .finally(() => {
-        isRunning = false;
-      });
   };
-
   const stopListening = registerGlobalKeydownListener(onKeyDown);
 
   fastify.log.info(

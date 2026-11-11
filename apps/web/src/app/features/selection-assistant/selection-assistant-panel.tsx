@@ -4,13 +4,14 @@ import { AnimatePresence, motion } from 'motion/react';
 import { BrandTitle } from '../../components/brand-title';
 import { SelectionAssistantMarkdown } from './selection-assistant-markdown';
 import { useSelectionAssistantFeed } from './use-selection-assistant-feed';
+import { SelectionAssistantInput } from './selection-assistant-input';
 
 interface SelectionAssistantPanelProps {
   onEntry: () => void;
 }
 
 export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProps) => {
-  const { connectionError, entry, shortcut } = useSelectionAssistantFeed(onEntry);
+  const { connectionError, entry, shortcut, submitText, submissionError, isSubmitting } = useSelectionAssistantFeed(onEntry);
   const helperMessage = shortcut
     ? `Press ${shortcut} after selecting text anywhere on Windows.`
     : 'Press the configured shortcut after selecting text anywhere on Windows.';
@@ -25,6 +26,11 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
       </header>
 
       <div className="assistant-content">
+        <SelectionAssistantInput
+          isBusy={isSubmitting || entry?.status === 'loading' || entry?.status === 'streaming'}
+          error={submissionError}
+          onSubmit={submitText}
+        />
         <AnimatePresence mode="wait">
           {connectionError ? (
             <motion.div
@@ -48,7 +54,7 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
                 {entry.status === 'loading' ? (
                   <div className="assistant-loading">
                     <Spin indicator={<LoaderCircle aria-hidden="true" />} />
-                    Reading the selected text and starting the assistant…
+                    Starting the assistant…
                   </div>
                 ) : entry.errorMessage ? (
                   <Alert type="error" showIcon message={entry.errorMessage} />
@@ -100,7 +106,7 @@ export const SelectionAssistantPanel = ({ onEntry }: SelectionAssistantPanelProp
               />
               <div>
                 <p className="assistant-empty-title">Ready when you are</p>
-                <p>Waiting for the latest selection assistant result. {helperMessage}</p>
+                <p>Type or paste text above to get started. {helperMessage}</p>
               </div>
             </motion.div>
           )}
