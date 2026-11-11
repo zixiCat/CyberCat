@@ -1,4 +1,4 @@
-import { Button, message } from 'antd';
+import { Alert, Button, message } from 'antd';
 import { Copy, Volume2 } from 'lucide-react';
 import type { TranslationEntry, TranslationLanguage } from './translation-api';
 
@@ -9,9 +9,11 @@ const languages = {
 
 interface TranslationResultProps {
   entry: TranslationEntry;
+  onCorrection: (query: string) => void;
+  onTranslateAsWritten: () => void;
 }
 
-export const TranslationResult = ({ entry: { query, result } }: TranslationResultProps) => {
+export const TranslationResult = ({ entry: { query, result }, onCorrection, onTranslateAsWritten }: TranslationResultProps) => {
   const [feedback, feedbackHolder] = message.useMessage();
   const source = languages[result.sourceLanguage];
   const targetLanguage = result.sourceLanguage === 'en' ? 'zh' : 'en';
@@ -44,13 +46,38 @@ export const TranslationResult = ({ entry: { query, result } }: TranslationResul
   };
 
   return (
-    <div aria-live="polite" className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5">
       {feedbackHolder}
       <h3 className="text-2xl font-semibold wrap-anywhere" lang={source.locale}>{query}</h3>
-      {result.kind === 'word' ? (
+      {result.kind === 'unrecognized' ? (
+        <>
+          <Alert type="warning" showIcon title={result.suggestionSource === 'english-spelling'
+            ? 'Not recognized by the English spelling dictionary.'
+            : 'AI could not identify a clear meaning for this input.'}
+            description={result.suggestionSource === 'english-spelling'
+              ? 'Check the spelling or add context. Names and specialized terms may be missing from the dictionary.'
+              : 'Check the spelling or add a sentence for context.'} />
+          {result.suggestions.length > 0 ? (
+            <section aria-label="Spelling suggestions" className="flex flex-col gap-5">
+              <h4 className="font-semibold">Did you mean?</h4>
+              <div className="flex flex-wrap gap-5">
+                {result.suggestions.map((suggestion) => (
+                  <Button key={suggestion} onClick={() => onCorrection(suggestion)}
+                    aria-label={`Look up ${suggestion}`}>{suggestion}</Button>
+                ))}
+              </div>
+              <p className="text-(--app-text-secondary)">{result.suggestionSource === 'english-spelling'
+                ? 'Spelling suggestions from English (US and UK) dictionaries.'
+                : 'AI-generated spelling suggestions; not dictionary-verified.'}</p>
+            </section>
+          ) : <p>No close spelling suggestions found. Try another spelling or a sentence for context.</p>}
+          <Button className="self-start" onClick={onTranslateAsWritten}>Translate as written with AI</Button>
+        </>
+      ) : <p className="text-(--app-text-secondary)">AI-generated translation · Meanings and pronunciation are not dictionary-verified.</p>}
+      {result.kind === 'word' && (
         <>
           <div className="flex items-center gap-1">
-            <Button type="text" icon={<Volume2 size={18} />} aria-label="Play word pronunciation"
+            <Button type="text" icon={<Volume2 size={18} />} aria-label="Play synthesized word pronunciation"
               onClick={() => speak(query, result.sourceLanguage)} />
             <span className="text-lg">{result.pronunciation}</span>
           </div>
@@ -66,7 +93,8 @@ export const TranslationResult = ({ entry: { query, result } }: TranslationResul
             </div>
           ))}
         </>
-      ) : (
+      )}
+      {result.kind === 'sentence' && (
         ([
           ['Casual', result.casual],
           ['Standard', result.standard],

@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { readSelectionAssistantConfig } from '../automation/selection-assistant/config';
 import { createTranslationHistory } from '../services/translation/translation-history';
 import { translate } from '../services/translation/translate';
+import { checkEnglishSpelling } from '../services/translation/english-spelling';
 import {
   translationEntrySchema,
   translationHistorySchema,
@@ -30,13 +31,16 @@ export default async function (fastify: FastifyInstance) {
       response: { 200: Type.Object({ entry: translationEntrySchema, history: translationHistorySchema }) },
     },
   }, async (request, reply) => {
-    if (!config.apiKey) {
-      return reply.serviceUnavailable('Translation needs a configured Selection Assistant API key.');
-    }
-
     const query = request.body.query.trim();
     try {
-      const entry = { query, result: await translate(config, query) };
+      const spelling = await checkEnglishSpelling(query);
+      if ((!spelling || request.body.translateAsWritten) && !config.apiKey) {
+        return reply.serviceUnavailable('Translation needs a configured Selection Assistant API key.');
+      }
+      const result = spelling && !request.body.translateAsWritten
+        ? spelling
+        : await translate(config, query, Boolean(spelling));
+      const entry = { query, result };
       return { entry, history: await history.save(entry) };
     } catch (error) {
       request.log.warn({ errorName: error instanceof Error ? error.name : 'UnknownError' }, 'Translation lookup failed');

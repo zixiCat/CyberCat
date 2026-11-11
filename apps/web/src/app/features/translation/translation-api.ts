@@ -12,6 +12,10 @@ export type TranslationResult = {
   kind: 'sentence';
   casual: string;
   standard: string;
+} | {
+  kind: 'unrecognized';
+  suggestions: string[];
+  suggestionSource: 'english-spelling' | 'ai';
 });
 
 export type TranslationEntry = { query: string; result: TranslationResult };
@@ -27,12 +31,20 @@ const readResponse = async <T>(response: Response): Promise<T> => {
 export const readTranslationHistory = async (signal: AbortSignal) =>
   readResponse<TranslationEntry[]>(await fetch(`${apiBaseUrl}/translation/history`, { signal }));
 
-export const searchTranslation = async (query: string, signal: AbortSignal) =>
-  readResponse<{ entry: TranslationEntry; history: TranslationEntry[] }>(
-    await fetch(`${apiBaseUrl}/translation`, {
+export const searchTranslation = async (query: string, signal: AbortSignal, translateAsWritten = false) => {
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl}/translation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, translateAsWritten }),
       signal,
-    }),
-  );
+    });
+  } catch (error) {
+    if (signal.aborted) {
+      throw error;
+    }
+    throw new Error('Could not reach the translation service. Check your connection and retry.');
+  }
+  return readResponse<{ entry: TranslationEntry; history: TranslationEntry[] }>(response);
+};

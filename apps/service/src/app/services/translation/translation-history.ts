@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Value } from '@sinclair/typebox/value';
 import { translationEntrySchema, type TranslationEntry } from './translation-schema';
+import { checkEnglishSpelling } from './english-spelling';
 
 const historyLimit = 100;
 
@@ -23,7 +24,11 @@ export const createTranslationHistory = (filePath: string) => {
     if (!Array.isArray(history)) {
       throw new Error('Invalid translation history.');
     }
-    return history.filter((entry) => Value.Check(translationEntrySchema, entry)).slice(0, historyLimit);
+    const entries = history.filter((entry) => Value.Check(translationEntrySchema, entry)).slice(0, historyLimit);
+    // Old AI entries may contain confidently defined typos. Recheck before display.
+    return Promise.all(entries.map(async (entry) => entry.result.kind === 'word'
+      ? { ...entry, result: await checkEnglishSpelling(entry.query) ?? entry.result }
+      : entry));
   };
 
   const save = (entry: TranslationEntry) => {

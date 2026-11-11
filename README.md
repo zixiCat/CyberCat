@@ -97,6 +97,23 @@ Configure it in [`.env.example`](./.env.example) through these variables:
 - `SELECTION_ASSISTANT_PROMPT_PATH` to override the default prompt file at [apps/service/src/assets/selection-assistant.prompt.md](./apps/service/src/assets/selection-assistant.prompt.md)
 - `SELECTION_ASSISTANT_LOG_PATH` to choose the output-only Markdown log destination
 
+## Translation
+
+Translation reuses the Selection Assistant API key, base URL, and model for
+English–Chinese translations. Meanings, pronunciation text, and translations are
+AI-generated and labeled as such; they are not verified dictionary definitions.
+
+After submitting a single English word, a local spelling check uses US and UK
+English dictionaries through `nspell`. An unrecognized spelling such as
+`estmimate` offers selectable corrections such as `estimate`, without generating
+a definition or pronunciation for the typo. Selecting a correction keeps the
+original query in the input. Corrections work with the keyboard and without an
+API key. Names and specialized terms may be absent from the dictionaries; use
+**Translate as written with AI** or add sentence context when appropriate.
+Suggestions appear after submitting, rather than while typing.
+
+Run the translation regression checks with `npm run test:translation`.
+
 ## Commands
 
 CyberCat discovers shell scripts directly from [commands/xgd](./commands/xgd) and [commands/zixiCat](./commands/zixiCat). They run from the repository root:

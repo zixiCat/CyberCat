@@ -2,8 +2,9 @@ import { Type, type Static } from '@sinclair/typebox';
 
 const languageSchema = Type.Union([Type.Literal('en'), Type.Literal('zh')]);
 const textSchema = Type.String({ minLength: 1, pattern: '\\S' });
+const querySchema = Type.String({ minLength: 1, maxLength: 4000, pattern: '\\S' });
 
-export const translationResultSchema = Type.Union([
+export const generatedTranslationSchema = Type.Union([
   Type.Object({
     kind: Type.Literal('word'),
     sourceLanguage: languageSchema,
@@ -19,16 +20,30 @@ export const translationResultSchema = Type.Union([
     casual: textSchema,
     standard: textSchema,
   }),
+  Type.Object({
+    kind: Type.Literal('unrecognized'),
+    sourceLanguage: languageSchema,
+    suggestions: Type.Array(textSchema, { maxItems: 5, uniqueItems: true }),
+    suggestionSource: Type.Literal('ai'),
+  }),
+]);
+
+export const translationResultSchema = Type.Union([
+  generatedTranslationSchema,
+  Type.Object({
+    kind: Type.Literal('unrecognized'),
+    sourceLanguage: Type.Literal('en'),
+    suggestions: Type.Array(textSchema, { maxItems: 5, uniqueItems: true }),
+    suggestionSource: Type.Literal('english-spelling'),
+  }),
 ]);
 
 export const translationRequestSchema = Type.Object({
-  query: Type.String({ minLength: 1, maxLength: 4000, pattern: '\\S' }),
+  query: querySchema,
+  translateAsWritten: Type.Optional(Type.Boolean()),
 });
 
-export const translationEntrySchema = Type.Intersect([
-  translationRequestSchema,
-  Type.Object({ result: translationResultSchema }),
-]);
+export const translationEntrySchema = Type.Object({ query: querySchema, result: translationResultSchema });
 
 export const translationHistorySchema = Type.Array(translationEntrySchema, { maxItems: 100 });
 
