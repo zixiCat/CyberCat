@@ -1,8 +1,8 @@
-import { Alert, Button, Input, Spin } from 'antd';
-import { Search } from 'lucide-react';
+import { Alert, Button, Spin } from 'antd';
 import { useEffect, useRef } from 'react';
 import { useSetState } from 'react-use';
 import { BrandTitle } from '../../components/brand-title';
+import { SubmitTextArea, textSubmitHint } from '../../components/submit-text-area';
 import { readTranslationHistory, searchTranslation, type TranslationEntry } from './translation-api';
 import { TranslationResult } from './translation-result';
 
@@ -94,29 +94,34 @@ export const TranslationPanel = () => {
         <BrandTitle title="Translation" />
       </header>
       <div className="flex flex-col gap-5 p-5 text-sm">
-        <form className="flex items-center gap-2" onSubmit={(event) => {
+        <form className="flex items-start gap-5" onSubmit={(event) => {
           event.preventDefault();
           void search();
         }}>
-          <Input
+          <SubmitTextArea
+            className="min-w-0 flex-1"
             size="large"
             allowClear
-            prefix={<Search size={18} aria-hidden="true" />}
+            autoSize={{ minRows: 1, maxRows: 10 }}
             aria-label="Look up a word or sentence"
             placeholder="Look up a word or sentence"
             maxLength={4000}
+            aria-describedby="translation-input-help"
             value={state.input}
-            onChange={(event) => {
+            onValueChange={(input) => {
               activeSearch.current?.abort();
               activeSearch.current = null;
-              setState({ input: event.target.value, entry: null, error: '', searching: false, lookupQuery: '' });
+              setState({ input, entry: null, error: '', searching: false, lookupQuery: '' });
             }}
+            onSubmit={() => void search()}
+            submitDisabled={state.searching || !state.input.trim()}
           />
           <Button size="large" type="primary" htmlType="submit" loading={state.searching}
             disabled={!state.input.trim()}>
             Search
           </Button>
         </form>
+        <p id="translation-input-help" className="text-(--app-text-secondary)">{textSubmitHint}</p>
         {state.lookupQuery && state.lookupQuery !== state.input.trim() && (
           <p className="wrap-anywhere text-(--app-text-secondary)">
             {state.searching ? 'Looking up ' : 'Selected word: '}<strong>{state.lookupQuery}</strong> · Original query: {state.input.trim()}

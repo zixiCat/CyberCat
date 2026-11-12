@@ -91,8 +91,9 @@ Configure it in [`.env.example`](./.env.example) through these variables:
 The selection assistant starts with the service on Windows, listens for a global shortcut, reads the current selection, sends it through the OpenAI JavaScript SDK to an OpenAI-compatible `/chat/completions` endpoint, shows the latest result in the web UI, and appends each output to a local Markdown log.
 
 You can also type or paste text into **Ask about text** in the Selection Assistant
-panel. Click **Ask assistant** or press **Ctrl+Enter** (or **Command+Enter** on macOS)
-to submit; Enter adds a new line. Manual input uses the same configured model,
+panel. Click **Ask assistant** or press **Enter** to submit. **Ctrl+Enter** (or
+**Command+Enter** on macOS) adds a new line. Translation uses the same keyboard
+behavior. Manual input uses the same configured model,
 prompt, streamed results, copy controls, and output log as the global shortcut.
 Empty input is ignored, overlapping requests are blocked, and failed submissions
 keep the text available for retry. The Windows selection shortcut still works.
