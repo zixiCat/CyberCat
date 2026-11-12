@@ -53,10 +53,10 @@ export const TranslationResult = ({ entry: { query, result }, onCorrection, onTr
         <>
           <Alert type="warning" showIcon title={result.suggestionSource === 'english-spelling'
             ? 'Not recognized by the English spelling dictionary.'
-            : 'AI could not identify a clear meaning for this input.'}
+            : 'The translation provider could not interpret this text reliably.'}
             description={result.suggestionSource === 'english-spelling'
               ? 'Check the spelling or add context. Names and specialized terms may be missing from the dictionary.'
-              : 'Check the spelling or add a sentence for context.'} />
+              : 'Add a sentence, surrounding code, or the intended language, then Search again.'} />
           {result.suggestions.length > 0 ? (
             <section aria-label="Spelling suggestions" className="flex flex-col gap-5">
               <h4 className="font-semibold">Did you mean?</h4>
@@ -70,10 +70,37 @@ export const TranslationResult = ({ entry: { query, result }, onCorrection, onTr
                 ? 'Spelling suggestions from English (US and UK) dictionaries.'
                 : 'AI-generated spelling suggestions; not dictionary-verified.'}</p>
             </section>
-          ) : <p>No close spelling suggestions found. Try another spelling or a sentence for context.</p>}
-          <Button className="self-start" onClick={onTranslateAsWritten}>Translate as written with AI</Button>
+          ) : result.suggestionSource === 'english-spelling'
+            ? <p>No close spelling suggestions found. Try another spelling or a sentence for context.</p>
+            : null}
+          {result.suggestionSource === 'english-spelling' && (
+            <Button className="self-start" onClick={onTranslateAsWritten}>Translate as written with AI</Button>
+          )}
         </>
-      ) : <p className="text-(--app-text-secondary)">AI-generated translation · Meanings and pronunciation are not dictionary-verified.</p>}
+      ) : <p className="text-(--app-text-secondary)">{result.kind === 'interpretation'
+        ? 'AI-generated interpretation · The exact meaning may depend on context.'
+        : 'AI-generated translation · Meanings and pronunciation are not dictionary-verified.'}</p>}
+      {result.kind === 'interpretation' && (
+        <>
+          {result.interpretedAs && <p className="wrap-anywhere text-(--app-text-secondary)" lang={source.locale}>
+            Interpreted as: <strong>{result.interpretedAs}</strong>
+          </p>}
+          <section className="flex flex-col gap-5 border-t border-(--app-border) pt-5">
+            <div className="flex flex-wrap items-center justify-between gap-5">
+              <h4 className="font-semibold">Translation</h4>
+              <div className="flex items-center">
+                <Button type="text" icon={<Copy size={16} />} aria-label="Copy interpretation translation"
+                  onClick={() => void copy(result.translation)}>Copy</Button>
+                <Button type="text" icon={<Volume2 size={18} />} aria-label="Play interpretation translation"
+                  onClick={() => speak(result.translation, targetLanguage)} />
+              </div>
+            </div>
+            <p className="text-lg wrap-anywhere" lang={target.locale}>{result.translation}</p>
+            <h4 className="font-semibold">Possible meaning</h4>
+            <p className="wrap-anywhere">{result.explanation}</p>
+          </section>
+        </>
+      )}
       {result.kind === 'word' && (
         <>
           <div className="flex items-center gap-1">

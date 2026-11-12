@@ -145,7 +145,14 @@ export const TranslationPanel = () => {
             <div className="flex flex-wrap gap-2">
               {state.history.map((entry) => (
                 <Button key={entry.query} className="max-w-full" title={entry.query}
-                  onClick={() => setState({ entry, input: entry.query, error: '', lookupQuery: entry.query })}>
+                  onClick={() => {
+                    setState({ input: entry.query, error: '', lookupQuery: entry.query });
+                    if (entry.result.kind === 'unrecognized') {
+                      void search(entry.query);
+                    } else {
+                      setState({ entry });
+                    }
+                  }}>
                   <span className="truncate" lang={entry.result.sourceLanguage}>{entry.query}</span>
                 </Button>
               ))}

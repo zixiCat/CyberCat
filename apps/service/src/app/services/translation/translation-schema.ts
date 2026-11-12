@@ -21,6 +21,13 @@ export const generatedTranslationSchema = Type.Union([
     standard: textSchema,
   }),
   Type.Object({
+    kind: Type.Literal('interpretation'),
+    sourceLanguage: languageSchema,
+    translation: textSchema,
+    explanation: textSchema,
+    interpretedAs: Type.Optional(textSchema),
+  }),
+  Type.Object({
     kind: Type.Literal('unrecognized'),
     sourceLanguage: languageSchema,
     suggestions: Type.Array(textSchema, { maxItems: 5, uniqueItems: true }),

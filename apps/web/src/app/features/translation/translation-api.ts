@@ -13,6 +13,11 @@ export type TranslationResult = {
   casual: string;
   standard: string;
 } | {
+  kind: 'interpretation';
+  translation: string;
+  explanation: string;
+  interpretedAs?: string;
+} | {
   kind: 'unrecognized';
   suggestions: string[];
   suggestionSource: 'english-spelling' | 'ai';

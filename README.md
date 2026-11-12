@@ -117,8 +117,13 @@ English dictionaries through `nspell`. An unrecognized spelling such as
 `estmimate` offers selectable corrections such as `estimate`, without generating
 a definition or pronunciation for the typo. Selecting a correction keeps the
 original query in the input. Corrections work with the keyboard and without an
-API key. Names and specialized terms may be absent from the dictionaries; use
-**Translate as written with AI** or add sentence context when appropriate.
+API key. Technical identifiers such as `ConsecutiveDetailsGroup` are interpreted
+as separate words and translated directly on Search, with a possible meaning
+and a clear AI label. Names and terms with no spelling alternatives also get an
+AI interpretation attempt immediately. When a spelling suggestion is offered,
+**Translate as written with AI** can still interpret the original text instead.
+If the provider cannot infer a reliable meaning, add a sentence or surrounding
+code for context; the UI does not offer the same unsuccessful fallback again.
 Suggestions appear after submitting, rather than while typing.
 
 Run the translation regression checks with `npm run test:translation`.

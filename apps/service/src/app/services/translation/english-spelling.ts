@@ -11,7 +11,7 @@ const loadDictionaries = () => dictionaries ??= Promise.all([
   dic: Buffer.from(dictionary.dic),
 })));
 
-export const checkEnglishSpelling = async (query: string): Promise<TranslationResult | null> => {
+export const checkEnglishSpelling = async (query: string): Promise<Extract<TranslationResult, { kind: 'unrecognized' }> | null> => {
   const word = query.replaceAll('’', "'");
   if (!/^[a-z]+(?:['-][a-z]+)*$/i.test(word)) {
     return null;

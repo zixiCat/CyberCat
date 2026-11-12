@@ -8,15 +8,22 @@ const { after, before, test } = require('node:test');
 const { transformSync } = require('esbuild');
 
 // Use the production compiler, preserving native import() for ESM dictionaries.
-require.extensions['.ts'] = (module, filename) => module._compile(transformSync(readFileSync(filename, 'utf8'), {
-  loader: 'ts', format: 'cjs', target: 'node22',
-}).code, filename);
+for (const extension of ['.ts', '.tsx']) {
+  require.extensions[extension] = (module, filename) => module._compile(transformSync(readFileSync(filename, 'utf8'), {
+    loader: extension === '.tsx' ? 'tsx' : 'ts', format: 'cjs', target: 'node22', jsx: 'automatic',
+  }).code, filename);
+}
 
 const { checkEnglishSpelling } = require('../apps/service/src/app/services/translation/english-spelling.ts');
 const { createTranslationHistory } = require('../apps/service/src/app/services/translation/translation-history.ts');
 const { translate } = require('../apps/service/src/app/services/translation/translate.ts');
 const translationRoutes = require('../apps/service/src/app/routes/translation.ts').default;
 const { searchTranslation } = require('../apps/web/src/app/features/translation/translation-api.ts');
+const { splitTranslationIdentifier } = require('../apps/service/src/app/services/translation/translation-input.ts');
+const interpretation = {
+  kind: 'interpretation', sourceLanguage: 'en', translation: 'A group of consecutive details',
+  explanation: 'A possible name for a collection of sequential details; its exact role depends on the application.',
+};
 const wordResult = {
   kind: 'word', sourceLanguage: 'en', pronunciation: '/ˈɛstəmeɪt/',
   meanings: [{ partOfSpeech: 'verb', senses: ['Approximate a value'] }],
@@ -26,6 +33,7 @@ let provider;
 let config;
 const requests = [];
 let providerResult = wordResult;
+let providerContent;
 
 before(async () => {
   temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'cybercat-translation-'));
@@ -34,7 +42,7 @@ before(async () => {
     for await (const chunk of request) body += chunk;
     requests.push(JSON.parse(body));
     response.setHeader('Content-Type', 'application/json');
-    response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(providerResult) } }] }));
+    response.end(JSON.stringify({ choices: [{ message: { content: providerContent ?? JSON.stringify(providerResult) } }] }));
   });
   await new Promise((resolve) => provider.listen(0, '127.0.0.1', resolve));
   config = { apiKey: 'fixture-key', baseUrl: `http://127.0.0.1:${provider.address().port}`, model: 'fixture-model' };
@@ -131,7 +139,7 @@ test('route supports typo suggestions without credentials, then corrected lookup
     });
     assert.equal(asWritten.statusCode, 200);
     assert.equal(asWritten.json().entry.result.suggestionSource, 'ai');
-    assert.match(requests.at(-1).messages[0].content, /Do not correct it or provide word definitions/);
+    assert.match(requests.at(-1).messages[0].content, /Do not silently correct it or provide dictionary definitions/);
     providerResult = wordResult;
   } finally {
     await configured.close();
@@ -146,11 +154,95 @@ test('AI translation preserves multilingual output and rejects invalid or invent
   assert.deepEqual(await translate(config, 'Hello there'), providerResult);
   providerResult = { kind: 'unrecognized', sourceLanguage: 'en', suggestions: [], suggestionSource: 'ai' };
   assert.deepEqual(await translate(config, 'qzxvbnmkj', true), providerResult);
-  assert.match(requests.at(-1).messages[0].content, /Do not correct it or provide word definitions/);
+  assert.match(requests.at(-1).messages[0].content, /Do not silently correct it or provide dictionary definitions/);
   providerResult = wordResult;
   await assert.rejects(translate(config, 'estmimate', true), /invalid result/);
   providerResult = { kind: 'word', sourceLanguage: 'en' };
   await assert.rejects(translate(config, 'estimate'), /invalid result/);
+});
+
+test('identifier boundaries preserve acronyms and leave ordinary words and typos alone', () => {
+  assert.equal(splitTranslationIdentifier('ConsecutiveDetailsGroup'), 'Consecutive Details Group');
+  assert.equal(splitTranslationIdentifier('getUserByID'), 'get User By ID');
+  assert.equal(splitTranslationIdentifier('HTTPResponse2Group'), 'HTTP Response 2 Group');
+  assert.equal(splitTranslationIdentifier('consecutive_details_group'), 'consecutive details group');
+  for (const query of ['estimate', 'Estimate', 'ESTIMATE', 'estmimate', 'qzxvbnmkj', 'some text']) {
+    assert.equal(splitTranslationIdentifier(query), undefined, query);
+  }
+});
+
+test('Search interprets identifiers in one provider request; unknown text and fallback stay honest', async () => {
+  const envBefore = { ...process.env };
+  const app = require('fastify')();
+  try {
+    Object.assign(process.env, {
+      SCRIPTS_ROOT: path.join(temporaryRoot, 'identifiers'),
+      SELECTION_ASSISTANT_API_KEY: config.apiKey,
+      SELECTION_ASSISTANT_BASE_URL: config.baseUrl,
+      SELECTION_ASSISTANT_MODEL: config.model,
+    });
+    await app.register(require('@fastify/sensible'));
+    await app.register(translationRoutes);
+    const lookup = (query, translateAsWritten = false) => app.inject({
+      method: 'POST', url: '/translation', payload: { query, translateAsWritten },
+    });
+    providerResult = interpretation;
+    const beforeCount = requests.length;
+    const response = await lookup('ConsecutiveDetailsGroup');
+    assert.equal(response.statusCode, 200);
+    assert.equal(requests.length, beforeCount + 1);
+    assert.equal(requests.at(-1).messages.at(-1).content, 'ConsecutiveDetailsGroup');
+    assert.match(requests.at(-1).messages[0].content, /Consecutive Details Group/);
+    assert.deepEqual(response.json().entry, {
+      query: 'ConsecutiveDetailsGroup', result: { ...interpretation, interpretedAs: 'Consecutive Details Group' },
+    });
+    const fallback = await lookup('estmimate', true);
+    assert.equal(fallback.json().entry.result.kind, 'interpretation');
+    const term = await lookup('Kubernetes');
+    assert.equal(term.json().entry.result.kind, 'interpretation');
+    providerResult = { kind: 'unrecognized', sourceLanguage: 'en', suggestions: [], suggestionSource: 'ai' };
+    const nonsense = await lookup('qzxvbnmkj');
+    assert.equal(nonsense.statusCode, 200);
+    assert.equal(nonsense.json().entry.result.suggestionSource, 'ai');
+    assert.equal(nonsense.json().entry.result.pronunciation, undefined);
+    // Explicit interpretation must be honored even when the spelling check is skipped.
+    providerResult = wordResult;
+    assert.equal((await lookup('an unfamiliar phrase', true)).statusCode, 502);
+    for (const [content, message] of [['', /no answer/], ['not JSON', /unreadable answer/]]) {
+      providerContent = content;
+      const invalid = await lookup('ConsecutiveDetailsGroup');
+      assert.equal(invalid.statusCode, 502);
+      assert.match(invalid.json().message, message);
+    }
+    const history = (await app.inject('/translation/history')).json();
+    assert.equal(history.find(entry => entry.query === 'ConsecutiveDetailsGroup').result.kind, 'interpretation');
+  } finally {
+    providerContent = undefined;
+    providerResult = wordResult;
+    await app.close();
+    process.env = envBefore;
+  }
+});
+
+test('interpretations render useful information; an exhausted AI lookup does not offer the same fallback again', () => {
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const { TranslationResult } = require('../apps/web/src/app/features/translation/translation-result.tsx');
+  const render = result => renderToStaticMarkup(React.createElement(TranslationResult, {
+    entry: { query: 'ConsecutiveDetailsGroup', result }, onCorrection: () => undefined, onTranslateAsWritten: () => undefined,
+  }));
+  const html = render({ ...interpretation, interpretedAs: 'Consecutive Details Group' });
+  assert.match(html, /AI-generated interpretation/);
+  assert.match(html, /Consecutive Details Group/);
+  assert.match(html, /A group of consecutive details/);
+  assert.match(html, /exact role depends on the application/);
+  assert.doesNotMatch(html, /Translate as written|Play synthesized word pronunciation/);
+  const unknown = render({ kind: 'unrecognized', sourceLanguage: 'en', suggestions: [], suggestionSource: 'ai' });
+  assert.match(unknown, /surrounding code/);
+  assert.doesNotMatch(unknown, /Translate as written|No close spelling suggestions/);
+  const typo = render({ kind: 'unrecognized', sourceLanguage: 'en', suggestions: ['estimate'], suggestionSource: 'english-spelling' });
+  assert.match(typo, /Look up estimate/);
+  assert.match(typo, /Translate as written with AI/);
 });
 
 test('web lookup reports useful connection errors and preserves cancellation', async (context) => {

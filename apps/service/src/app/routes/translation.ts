@@ -6,6 +6,7 @@ import { readSelectionAssistantConfig } from '../automation/selection-assistant/
 import { createTranslationHistory } from '../services/translation/translation-history';
 import { translate } from '../services/translation/translate';
 import { checkEnglishSpelling } from '../services/translation/english-spelling';
+import { splitTranslationIdentifier } from '../services/translation/translation-input';
 import {
   translationEntrySchema,
   translationHistorySchema,
@@ -33,17 +34,24 @@ export default async function (fastify: FastifyInstance) {
   }, async (request, reply) => {
     const query = request.body.query.trim();
     try {
-      const spelling = await checkEnglishSpelling(query);
-      if ((!spelling || request.body.translateAsWritten) && !config.apiKey) {
+      const identifier = splitTranslationIdentifier(query);
+      const spelling = identifier ? null : await checkEnglishSpelling(query);
+      // Close spelling alternatives deserve a choice. Other text gets one AI attempt
+      // immediately, including technical identifiers and terms absent from Hunspell.
+      const useSpellingSuggestions = spelling && spelling.suggestions.length > 0 && !request.body.translateAsWritten;
+      if (!useSpellingSuggestions && !config.apiKey) {
         return reply.serviceUnavailable('Translation needs a configured Selection Assistant API key.');
       }
-      const result = spelling && !request.body.translateAsWritten
+      const result = useSpellingSuggestions
         ? spelling
-        : await translate(config, query, Boolean(spelling));
+        : await translate(config, query, Boolean(spelling || identifier || request.body.translateAsWritten));
       const entry = { query, result };
       return { entry, history: await history.save(entry) };
     } catch (error) {
       request.log.warn({ errorName: error instanceof Error ? error.name : 'UnknownError' }, 'Translation lookup failed');
+      if (error instanceof Error && error.name === 'TranslationResponseError') {
+        return reply.badGateway(error.message);
+      }
       return reply.badGateway('Could not complete the lookup. Try again.');
     }
   });
